@@ -6,6 +6,6 @@
 		}
 	},
 	"require": {
-		"lossik/communication": "dev-master"
+		"lossik/device-communication": "dev-master"
 	}
 }
