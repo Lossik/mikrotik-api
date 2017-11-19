@@ -2,10 +2,10 @@
 	"name": "lossik/mikrotik-api",
 	"autoload": {
 		"psr-4": {
-			"Lossik\\": "src/"
+			"Lossik\\Device\\Mikrotik\\Api\\": "src/"
 		}
 	},
 	"require": {
-		"lossik/device-communication": "dev-master"
+		"lossik/device-communication": "~1.0"
 	}
 }
