@@ -1,0 +1,11 @@
+{
+	"name": "lossik/mikrotik-api",
+	"autoload": {
+		"psr-4": {
+			"Lossik\\": "src/"
+		}
+	},
+	"require": {
+		"lossik/communication": "dev-master"
+	}
+}
