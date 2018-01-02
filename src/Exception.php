@@ -8,10 +8,12 @@
 
 namespace Lossik\Device\Mikrotik\Api;
 
+const API_IMPOSSIBLE_CONNECT = 1;
+const API_IMPOSSIBLE_LOGIN = 2;
+const API_TRAP = 4;
 
 class Exception extends \Exception
 {
-
 
 	public function setMessage($message)
 	{

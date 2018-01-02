@@ -139,6 +139,7 @@ class Definition implements IDefinition
 				break;
 			}
 		}
+
 		if ($parse) {
 			$RESPONSE = static::parseResponse($RESPONSE);
 		}
@@ -221,7 +222,7 @@ class Definition implements IDefinition
 				$PARSED = $singlevalue;
 			}
 			if ($error) {
-				throw new Exception(isset($PARSED['!trap'][0]['message']) ? $PARSED['!trap'][0]['message'] : json_encode([$PARSED, $response]));
+				throw new Exception(isset($PARSED['!trap'][0]['message']) ? $PARSED['!trap'][0]['message'] : json_encode([$PARSED, $response]), API_TRAP);
 			}
 
 			return $PARSED;
@@ -241,8 +242,7 @@ class Definition implements IDefinition
 		$socket = @stream_socket_client($PROTOCOL . $ip . ':' . ($options->ssl ? $options->sslPort : $options->port), $error_no, $error_str, $options->timeout, STREAM_CLIENT_CONNECT, $context);
 
 		if (!is_resource($socket)) {
-			fclose($socket);
-			throw new Exception($error_str, $error_no);
+			throw new Exception($error_str, API_IMPOSSIBLE_CONNECT);
 		}
 		stream_set_blocking($socket,true);
 		stream_set_timeout($socket,$options->timeout);
