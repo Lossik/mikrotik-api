@@ -65,8 +65,11 @@ class FormatHelper
 			$speed  = substr($speed, $pos);
 		}
 		if (($pos = strpos($speed, 'k')) !== false) {
-			$result += ((int)(substr($speed, 0, $pos)) * 1000) + (int)substr($speed, $pos);
+			$result += ((int)(substr($speed, 0, $pos)) * 1000);
+			$speed  = substr($speed, $pos);
 		}
+
+		$result += (int)$speed;
 
 		return trim($result);
 
