@@ -104,7 +104,7 @@ class Command
 	}
 
 
-	public function updateOneItems(array $where, array $record, $filterCallback = null)
+	public function updateOneItem(array $where, array $record, $filterCallback = null)
 	{
 		$r   = $this->getOneItem($where, $filterCallback);
 
@@ -162,6 +162,14 @@ class Command
 		$ids = array_column($r, '.id');
 
 		return $this->command('remove', ['.id' => implode(',', $ids)]);
+	}
+
+
+	public function delOneItem(array $where, $filterCallback = null)
+	{
+		$r   = $this->getItems(['.id'], $where, $filterCallback);
+
+		return $this->command('remove', ['.id' => $r['.id']]);
 	}
 
 }
