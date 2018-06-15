@@ -134,6 +134,14 @@ class Command
 	}
 
 
+	public function getOneItem(array $where = [], $filterCallback = null)
+	{
+		$result = $this->getItems([], $where, $filterCallback);
+
+		return $result ? $result[0] : [];
+	}
+
+
 	public function delItem($id)
 	{
 		return $this->command('remove', ['.id' => $id]);
