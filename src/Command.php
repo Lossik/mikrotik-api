@@ -104,6 +104,14 @@ class Command
 	}
 
 
+	public function updateOneItems(array $where, array $record, $filterCallback = null)
+	{
+		$r   = $this->getOneItem($where, $filterCallback);
+
+		return $this->command('set', ['.id' => $r['.id']] + $record);
+	}
+
+
 	public function getItems(array $columns = [], array $where = [], $filterCallback = null)
 	{
 		$args = [];
