@@ -63,6 +63,7 @@ class Definition implements IDefinition
 
 	protected function write($socket, $command, $param2 = true)
 	{
+		var_dump($command, $param2);
 		if ($command) {
 			$data = explode("\n", $command);
 			foreach ($data as $com) {

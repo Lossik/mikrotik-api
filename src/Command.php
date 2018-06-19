@@ -130,7 +130,7 @@ class Command
 			$result = array_filter($result, $filterCallback);
 		}
 
-		return $result;
+		return array_values($result);
 	}
 
 
@@ -167,7 +167,7 @@ class Command
 
 	public function delOneItem(array $where, $filterCallback = null)
 	{
-		$r   = $this->getItems(['.id'], $where, $filterCallback);
+		$r = $this->getOneItem($where, $filterCallback);
 
 		return $this->command('remove', ['.id' => $r['.id']]);
 	}
