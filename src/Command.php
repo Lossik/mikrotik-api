@@ -1,13 +1,9 @@
-<?php
-/**
- * Created by PhpStorm.
- * User: Losse
- * Date: 21.06.2017
- * Time: 12:08
- */
+<?php declare(strict_types=1);
 
 namespace Lossik\Device\Mikrotik\Api;
 
+
+use Lossik\Device\Communication\LogicException;
 
 class Command
 {
@@ -44,7 +40,7 @@ class Command
 
 	/**
 	 * @return Connection
-	 * @throws Exception
+	 * @throws LogicException
 	 */
 	protected function getConnection()
 	{
@@ -55,13 +51,13 @@ class Command
 		if (is_callable($this->connection)) {
 			$connection = call_user_func($this->connection);
 			if (!($connection instanceof Connection)) {
-				throw new Exception('Callback set with "setConnection" must return instance of ' . Connection::class);
+				throw new LogicException('Callback set with "setConnection" must return instance of ' . Connection::class);
 			}
 
 			return $this->connection = $connection;
 		}
 
-		throw new Exception('Connection is not set');
+		throw new LogicException('Connection is not set');
 	}
 
 

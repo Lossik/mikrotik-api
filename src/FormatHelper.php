@@ -1,15 +1,9 @@
-<?php
-/**
- * Created by PhpStorm.
- * User: Losse
- * Date: 27.06.2017
- * Time: 14:17
- */
+<?php declare(strict_types=1);
 
 namespace Lossik\Device\Mikrotik\Api;
 
 
-class FormatHelper
+final class FormatHelper
 {
 
 

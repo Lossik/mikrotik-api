@@ -1,10 +1,13 @@
-<?php
+<?php declare(strict_types=1);
 
 
 namespace Lossik\Device\Mikrotik\Api;
 
+const API_IMPOSSIBLE_CONNECT = 1;
+const API_TRAP = 4;
 
 use Lossik\Device\Communication\IDefinition;
+use Lossik\Device\Communication\RuntimeException;
 
 class Definition implements IDefinition
 {
@@ -31,10 +34,8 @@ class Definition implements IDefinition
 
 			return $array_new;
 		}
-		else {
 
-			return $array;
-		}
+		return $array;
 	}
 
 
@@ -63,7 +64,6 @@ class Definition implements IDefinition
 
 	protected function write($socket, $command, $param2 = true)
 	{
-		var_dump($command, $param2);
 		if ($command) {
 			$data = explode("\n", $command);
 			foreach ($data as $com) {
@@ -119,7 +119,6 @@ class Definition implements IDefinition
 			$LENGTH = static::getLength($socket);
 
 			$_ = "";
-			// If we have got more characters to read, read them in.
 			if ($LENGTH > 0) {
 				$_      = "";
 				$retlen = 0;
@@ -129,9 +128,7 @@ class Definition implements IDefinition
 					$retlen = strlen($_);
 				}
 				$RESPONSE[] = $_;
-				//$this->debug('>>> [' . $retlen . '/' . $LENGTH . '] bytes read.');
 			}
-			// If we get a !done, make a note of it.
 			if ($_ == "!done") {
 				$receiveddone = true;
 			}
@@ -188,7 +185,7 @@ class Definition implements IDefinition
 	/**
 	 * @param $response
 	 *
-	 * @throws Exception
+	 * @throws RuntimeException
 	 *
 	 * @return array|null
 	 */
@@ -223,7 +220,7 @@ class Definition implements IDefinition
 				$PARSED = $singlevalue;
 			}
 			if ($error) {
-				throw new Exception(isset($PARSED['!trap'][0]['message']) ? $PARSED['!trap'][0]['message'] : json_encode([$PARSED, $response]), API_TRAP);
+				throw new RuntimeException(isset($PARSED['!trap'][0]['message']) ? $PARSED['!trap'][0]['message'] : json_encode([$PARSED, $response]), API_TRAP);
 			}
 
 			return $PARSED;
@@ -243,7 +240,7 @@ class Definition implements IDefinition
 		$socket = @stream_socket_client($PROTOCOL . $ip . ':' . ($options->ssl ? $options->sslPort : $options->port), $error_no, $error_str, $options->timeout, STREAM_CLIENT_CONNECT, $context);
 
 		if (!is_resource($socket)) {
-			throw new Exception($error_str, API_IMPOSSIBLE_CONNECT);
+			throw new RuntimeException($error_str, API_IMPOSSIBLE_CONNECT);
 		}
 		stream_set_blocking($socket,true);
 		stream_set_timeout($socket,$options->timeout);
