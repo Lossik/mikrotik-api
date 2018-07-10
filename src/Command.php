@@ -2,80 +2,26 @@
 
 namespace Lossik\Device\Mikrotik\Api;
 
+use Lossik\Device\Communication as Comm;
 
-use Lossik\Device\Communication\LogicException;
-
-class Command
+class Command extends Comm\Command
 {
 
 
-	/** @var string */
-	private $menu;
-
-	/** @var Connection|callable */
-	private $connection;
-
-
 	/**
-	 * MikrotikCommand constructor.
-	 * @param string $menu
+	 * @param $record
+	 * @return mixed
+	 * @deprecated
 	 */
-	public function __construct($menu)
-	{
-		$this->menu = $menu;
-	}
-
-
 	public function addItem($record)
 	{
-		return $this->command('add', $record);
+		return $this->add($record);
 	}
 
 
 	public function command($com, array $arr = [])
 	{
-		return $this->getConnection()->comm($this->menu . '/' . $com, $arr);
-	}
-
-
-	/**
-	 * @return Connection
-	 * @throws LogicException
-	 */
-	protected function getConnection()
-	{
-		if ($this->connection instanceof Connection) {
-			return $this->connection;
-		}
-
-		if (is_callable($this->connection)) {
-			$connection = call_user_func($this->connection);
-			if (!($connection instanceof Connection)) {
-				throw new LogicException('Callback set with "setConnection" must return instance of ' . Connection::class);
-			}
-
-			return $this->connection = $connection;
-		}
-
-		throw new LogicException('Connection is not set');
-	}
-
-
-	/**
-	 * @param $connection Connection|callable
-	 * @return $this
-	 */
-	public function setConnection($connection)
-	{
-		$this->connection = $connection;
-
-		return $this;
-	}
-
-
-	public function getVersion()
-	{
-		return $this->getConnection()->version();
+		return $this->connection->comm($this->menu . '/' . $com, $arr);
 	}
 
 
@@ -85,39 +31,126 @@ class Command
 	}
 
 
+	/**
+	 * @param $id
+	 * @param array $record
+	 * @return mixed
+	 * @deprecated
+	 */
 	public function updateItem($id, array $record)
 	{
-		return $this->command('set', ['.id' => $id] + $record);
+		return $this->update(['.id' => $id], $record, null, true);
 	}
 
 
+	/**
+	 * @param array $where
+	 * @param array $record
+	 * @param null $filterCallback
+	 * @return mixed
+	 * @deprecated
+	 */
 	public function updateItems(array $where, array $record, $filterCallback = null)
 	{
-		$r   = $this->getItems(['.id'], $where, $filterCallback);
-		$ids = array_column($r, '.id');
-
-		return $this->command('set', ['.id' => implode(',', $ids)] + $record);
+		return $this->update($where, $record, $filterCallback);
 	}
 
 
+	/**
+	 * @param array $where
+	 * @param array $record
+	 * @param null $filterCallback
+	 * @return mixed
+	 * @deprecated
+	 */
 	public function updateOneItem(array $where, array $record, $filterCallback = null)
 	{
-		$r   = $this->getOneItem($where, $filterCallback);
-
-		return $this->command('set', ['.id' => $r['.id']] + $record);
+		return $this->update($where, $record, $filterCallback, true);
 	}
 
 
+	/**
+	 * @param array $columns
+	 * @param array $where
+	 * @param null $filterCallback
+	 * @return array
+	 * @deprecated
+	 */
 	public function getItems(array $columns = [], array $where = [], $filterCallback = null)
+	{
+		return $this->get($where, $filterCallback);
+	}
+
+
+	/**
+	 * @param $id
+	 * @param null $filterCallback
+	 * @return array|mixed
+	 * @deprecated
+	 */
+	public function getItem($id, $filterCallback = null)
+	{
+		$result = $this->get(['.id' => $id], $filterCallback, true);
+
+		return $result ? $result[0] : [];
+	}
+
+
+	/**
+	 * @param array $where
+	 * @param null $filterCallback
+	 * @return array|mixed
+	 * @deprecated
+	 */
+	public function getOneItem(array $where = [], $filterCallback = null)
+	{
+		$result = $this->get($where, $filterCallback, true);
+
+		return $result ? $result[0] : [];
+	}
+
+
+	/**
+	 * @param $id
+	 * @return mixed
+	 * @deprecated
+	 */
+	public function delItem($id)
+	{
+		return $this->del(['.id' => $id]);
+	}
+
+
+	/**
+	 * @param array $where
+	 * @param null $filterCallback
+	 * @return mixed
+	 * @deprecated
+	 */
+	public function delItems(array $where, $filterCallback = null)
+	{
+		return $this->del($where, $filterCallback);
+	}
+
+
+	/**
+	 * @param array $where
+	 * @param null $filterCallback
+	 * @return mixed
+	 * @deprecated
+	 */
+	public function delOneItem(array $where, $filterCallback = null)
+	{
+		return $this->del($where, $filterCallback, true);
+	}
+
+
+	public function get(array $where = [], $filterCallback = null, $onlyFirstItem = false)
 	{
 		$args = [];
 
 		foreach ($where as $key => $value) {
 			$args['?' . $key] = $value;
-		}
-
-		if ($columns) {
-			$args['.proplist'] = implode(',', $columns);
 		}
 
 		$result = $this->command('print', $args);
@@ -126,46 +159,35 @@ class Command
 			$result = array_filter($result, $filterCallback);
 		}
 
-		return array_values($result);
+		$result = array_values($result);
+		$first  = current($result);
+
+		return $onlyFirstItem ? ($first ? [$first] : []) : $result;
 	}
 
 
-	public function getItem($id, $filterCallback = null)
+	public function add(array $record)
 	{
-		$result = $this->getItems([], ['.id' => $id], $filterCallback);
-
-		return $result ? $result[0] : [];
+		return $this->command('add', $record);
 	}
 
 
-	public function getOneItem(array $where = [], $filterCallback = null)
+	public function update(array $where, array $record, $filterCallback = null, $onlyFirstItem = false)
 	{
-		$result = $this->getItems([], $where, $filterCallback);
+		$items = $this->get($where, $filterCallback, $onlyFirstItem);
+		$ids   = array_column($items, '.id');
 
-		return $result ? $result[0] : [];
+		return $this->command('set', ['.id' => implode(',', $ids)] + $record);
 	}
 
 
-	public function delItem($id)
+	public function del(array $where, $filterCallback = null, $onlyFirstItem = false)
 	{
-		return $this->command('remove', ['.id' => $id]);
-	}
-
-
-	public function delItems(array $where, $filterCallback = null)
-	{
-		$r   = $this->getItems(['.id'], $where, $filterCallback);
-		$ids = array_column($r, '.id');
+		$items = $this->get($where, $filterCallback, $onlyFirstItem);
+		$ids   = array_column($items, '.id');
 
 		return $this->command('remove', ['.id' => implode(',', $ids)]);
 	}
 
-
-	public function delOneItem(array $where, $filterCallback = null)
-	{
-		$r = $this->getOneItem($where, $filterCallback);
-
-		return $this->command('remove', ['.id' => $r['.id']]);
-	}
 
 }

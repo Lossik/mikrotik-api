@@ -3,6 +3,8 @@
 namespace Lossik\Device\Mikrotik\Api;
 
 
+use Lossik\Device\Communication\ICommand;
+
 class Connection extends \Lossik\Device\Communication\Connection
 {
 
@@ -33,9 +35,9 @@ class Connection extends \Lossik\Device\Communication\Connection
 
 	/**
 	 * @param string $menu
-	 * @return Command
+	 * @return ICommand
 	 */
-	public function Command($menu)
+	public function Command($menu): ICommand
 	{
 		$command = new Command($menu);
 		$command->setConnection($this);
