@@ -148,15 +148,27 @@ class Command extends Comm\Command
 	public function get(array $where = [], $filterCallback = null, $onlyFirstItem = false)
 	{
 		$args = [];
-
+		$whereCallbacks = [];
+		if($filterCallback){
+			$whereCallbacks[] = $filterCallback;
+		}
 		foreach ($where as $key => $value) {
-			$args['?' . $key] = $value;
+			if(strpos($value,'~') === 0){
+				$value = substr($value,1);
+				$whereCallbacks[] = function ($item) use($key, $value){
+					return strpos($item[$key] ?? '' , $value) === 0;
+				};
+			}else{
+				$args['?' . $key] = $value;
+			}
 		}
 
 		$result = $this->command('print', $args);
 
-		if ($filterCallback) {
-			$result = array_filter($result, $filterCallback);
+		if ($whereCallbacks) {
+			foreach ($whereCallbacks as $callback) {
+				$result = array_filter($result, $callback);
+			}
 		}
 
 		$result = array_values($result);

@@ -45,5 +45,4 @@ class Connection extends \Lossik\Device\Communication\Connection
 		return $command;
 	}
 
-
 }
