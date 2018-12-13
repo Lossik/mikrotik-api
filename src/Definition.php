@@ -240,7 +240,7 @@ class Definition implements IDefinition
 		$socket = @stream_socket_client($PROTOCOL . $ip . ':' . ($options->ssl ? $options->sslPort : $options->port), $error_no, $error_str, $options->timeout, STREAM_CLIENT_CONNECT, $context);
 
 		if (!is_resource($socket)) {
-			throw new RuntimeException($error_str, API_IMPOSSIBLE_CONNECT);
+			throw new RuntimeException("Unable to connect to the device.", API_IMPOSSIBLE_CONNECT);
 		}
 		stream_set_blocking($socket,true);
 		stream_set_timeout($socket,$options->timeout);
