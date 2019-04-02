@@ -14,5 +14,7 @@ class Options implements IOptions
 	public $ssl = false;
 	public $sslPort = 8729;
 	public $timeout = 3;
+	public $localCharset = 'UTF-8';
+	public $remoteCharset = 'WINDOWS-1250';
 
 }
