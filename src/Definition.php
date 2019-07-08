@@ -4,6 +4,7 @@ namespace Lossik\Device\Mikrotik\Api;
 
 const API_IMPOSSIBLE_CONNECT = 1;
 const API_TRAP               = 4;
+const API_FATAL              = 8;
 
 use Lossik\Device\Communication\IDefinition;
 use Lossik\Device\Communication\RuntimeException;
@@ -89,7 +90,7 @@ class Definition implements IDefinition
 						$CURRENT =& $PARSED[];
 					} else {
 						$CURRENT =& $PARSED[$x][];
-						$error   = true;
+						$error   = $x;
 					}
 				} elseif ($x != '!done') {
 					$MATCHES = [];
@@ -104,9 +105,13 @@ class Definition implements IDefinition
 			if (empty($PARSED) && !is_null($singlevalue)) {
 				$PARSED = $singlevalue;
 			}
-			if ($error) {
+			if ($error == '!fatal') {
+				throw new RuntimeException(isset($response[1]) ? $response[1] : json_encode([
+																								$response,
+																							]), API_FATAL);
+			}
+			if ($error == '!trap') {
 				throw new RuntimeException(isset($PARSED['!trap'][0]['message']) ? $PARSED['!trap'][0]['message'] : json_encode([
-																																	$PARSED,
 																																	$response,
 																																]), API_TRAP);
 			}
@@ -130,11 +135,16 @@ class Definition implements IDefinition
 
 	public function login($socket, $login, $password)
 	{
-		static::write($socket, '/login');
+		static::write($socket, '/login', false);
+		static::write($socket, '=name=' . $login, false);
+		static::write($socket, '=password=' . $password);
 		$RESPONSE = static::read($socket, false, false);
 		if (isset($RESPONSE[0]) && $RESPONSE[0] == '!done') {
+			if (!isset($RESPONSE[1])) { // post 6.43 login
+				return true;
+			}
 			$MATCHES = [];
-			if (preg_match_all('/[^=]+/i', $RESPONSE[1], $MATCHES)) {
+			if (preg_match_all('/[^=]+/i', $RESPONSE[1], $MATCHES)) { // pre 6.43 login
 				if ($MATCHES[0][0] == 'ret' && strlen($MATCHES[0][1]) == 32) {
 					static::write($socket, '/login', false);
 					static::write($socket, '=name=' . $login, false);
@@ -264,7 +274,7 @@ class Definition implements IDefinition
 				}
 				$RESPONSE[] = iconv($this->options->remoteCharset, $this->options->localCharset . '//IGNORE//TRANSLIT', $_);
 			}
-			if ($_ == "!done") {
+			if (in_array($_, ['!fatal', '!done', '!trap'])) {
 				$receiveddone = true;
 			}
 			$STATUS = socket_get_status($socket);
