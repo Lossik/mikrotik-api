@@ -153,7 +153,7 @@ class Command extends Comm\Command
 			$whereCallbacks[] = $filterCallback;
 		}
 		foreach ($where as $key => $value) {
-			if(strpos($value,'~') === 0){
+			if(is_string($value) && strpos($value,'~') === 0){
 				$value = substr($value,1);
 				$whereCallbacks[] = function ($item) use($key, $value){
 					return strpos($item[$key] ?? '' , $value) === 0;
