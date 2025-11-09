@@ -42,7 +42,11 @@ class Definition implements IDefinition
 
 	public static function getLength($socket)
 	{
-		$BYTE = ord(fread($socket, 1));
+		$fread = fread($socket, 1);
+		if ($fread === false) {
+    		return 0;
+		}
+		$BYTE = ord($fread);
 		if ($BYTE & 128) {
 			if (($BYTE & 192) == 128) {
 				return (($BYTE & 63) << 8) + ord(fread($socket, 1));
