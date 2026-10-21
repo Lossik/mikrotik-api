@@ -46,33 +46,42 @@ class Definition implements IDefinition
 		if ($fread === false) {
     		return 0;
 		}
-		$BYTE = ord($fread);
+		$BYTE = self::byteValue($fread);
 		if ($BYTE & 128) {
 			if (($BYTE & 192) == 128) {
-				return (($BYTE & 63) << 8) + ord(fread($socket, 1));
+				return (($BYTE & 63) << 8) + self::byteValue(fread($socket, 1));
 			} else {
 				if (($BYTE & 224) == 192) {
-					$LENGTH = (($BYTE & 31) << 8) + ord(fread($socket, 1));
+					$LENGTH = (($BYTE & 31) << 8) + self::byteValue(fread($socket, 1));
 
-					return ($LENGTH << 8) + ord(fread($socket, 1));
+					return ($LENGTH << 8) + self::byteValue(fread($socket, 1));
 				} else {
 					if (($BYTE & 240) == 224) {
-						$LENGTH = (($BYTE & 15) << 8) + ord(fread($socket, 1));
-						$LENGTH = ($LENGTH << 8) + ord(fread($socket, 1));
+						$LENGTH = (($BYTE & 15) << 8) + self::byteValue(fread($socket, 1));
+						$LENGTH = ($LENGTH << 8) + self::byteValue(fread($socket, 1));
 
-						return ($LENGTH << 8) + ord(fread($socket, 1));
+						return ($LENGTH << 8) + self::byteValue(fread($socket, 1));
 					} else {
-						$LENGTH = ord(fread($socket, 1));
-						$LENGTH = ($LENGTH << 8) + ord(fread($socket, 1));
-						$LENGTH = ($LENGTH << 8) + ord(fread($socket, 1));
+						$LENGTH = self::byteValue(fread($socket, 1));
+						$LENGTH = ($LENGTH << 8) + self::byteValue(fread($socket, 1));
+						$LENGTH = ($LENGTH << 8) + self::byteValue(fread($socket, 1));
 
-						return ($LENGTH << 8) + ord(fread($socket, 1));
+						return ($LENGTH << 8) + self::byteValue(fread($socket, 1));
 					}
 				}
 			}
 		} else {
 			return $BYTE;
 		}
+	}
+
+
+	/**
+	 * ord() of one byte read from the socket; '' (EOF) is 0, as ord('') returned before PHP 8.5 deprecated it.
+	 */
+	private static function byteValue(string $c): int
+	{
+		return $c === '' ? 0 : ord($c);
 	}
 
 
