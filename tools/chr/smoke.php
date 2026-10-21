@@ -9,11 +9,41 @@ declare(strict_types=1);
  *                                         that =version= starts with $CHR_VERSION (default 7.24.5)
  *   php tools/chr/smoke.php --login-only  readiness probe for chr.sh wait: succeeds on any complete reply
  *                                         to /login (!done or !trap); a bare TCP connect does not count
+ *   php tools/chr/smoke.php --ssh-banner  readiness probe for chr.sh wait-ssh: succeeds when the SSH port sends
+ *                                         a line starting with "SSH-"; a bare TCP connect does not count (the QEMU
+ *                                         port forward accepts connections before the router's SSH service is up)
  */
 
 require __DIR__ . '/routeros.php';
 
 $loginOnly = in_array('--login-only', array_slice($argv, 1), true);
+
+if (in_array('--ssh-banner', array_slice($argv, 1), true)) {
+    $socket = @stream_socket_client('tcp://' . CHR_HOST . ':' . CHR_SSH_PORT, $errno, $errstr, 5.0);
+    if ($socket === false) {
+        fwrite(STDERR, "not ready: connect failed: $errstr ($errno)\n");
+        exit(1);
+    }
+    stream_set_timeout($socket, 5);
+    // RFC 4253 allows other lines before the identification string.
+    for ($i = 0; $i < 10; $i++) {
+        $line = fgets($socket, 512);
+        if ($line === false) {
+            $meta = stream_get_meta_data($socket);
+            fclose($socket);
+            fwrite(STDERR, 'not ready: ' . ($meta['timed_out'] ? 'no banner within 5s' : 'connection closed without a banner') . "\n");
+            exit(1);
+        }
+        if (str_starts_with($line, 'SSH-')) {
+            fclose($socket);
+            echo 'ssh banner: ' . rtrim($line) . "\n";
+            exit(0);
+        }
+    }
+    fclose($socket);
+    fwrite(STDERR, "not ready: no SSH- line in the first 10 lines\n");
+    exit(1);
+}
 
 if ($loginOnly) {
     try {

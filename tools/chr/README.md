@@ -20,10 +20,10 @@ skip. Every run boots a fresh copy of the image in `/tmp`, so each run starts wi
 
 | file | purpose |
 |---|---|
-| `run-live.sh` | the whole lifecycle: PHP version check, `tools/ci.sh --deps-only` (git, Composer, dependencies), `chr.sh install`, `start`, `wait`, `provision.php`, `smoke.php`, `timeout 300 vendor/bin/phpunit --group live`, `chr.sh stop` (also on failure); prints the duration of every step. Run it from the repository root |
-| `chr.sh` | `install` (apt: `qemu-system-x86`, `unzip`), `start`, `wait`, `stop`, `status` |
+| `run-live.sh` | the whole lifecycle: PHP version check, `tools/ci.sh --deps-only` (git, Composer, dependencies), `chr.sh install`, `start`, `wait`, `provision.php`, `chr.sh wait-ssh`, `smoke.php`, `timeout 300 vendor/bin/phpunit --group live`, `chr.sh stop` (also on failure); prints the duration of every step. Run it from the repository root |
+| `chr.sh` | `install` (apt: `qemu-system-x86`, `unzip`), `start`, `wait` (API `/login`), `wait-ssh` (an `SSH-` banner line on port 18722; a fresh CHR sends none for a while after the API is up, and a bare TCP connect succeeds through the QEMU port forward even then), `stop`, `status` |
 | `provision.php` | idempotent setup: admin password, read-only user `nopass` with empty password, services `api`/`api-ssl`/`ssh`, self-signed certificate `test` for `api-ssl` |
-| `smoke.php` | logs in and checks `/system/resource/print` reports `CHR_VERSION`; `--login-only` is the readiness probe of `chr.sh wait` |
+| `smoke.php` | logs in and checks `/system/resource/print` reports `CHR_VERSION`; `--login-only` is the readiness probe of `chr.sh wait`, `--ssh-banner` of `chr.sh wait-ssh` |
 | `routeros.php` | minimal raw-socket RouterOS API client used by the two PHP scripts |
 | `versions.txt` | known CHR versions with their official SHA256 |
 
@@ -61,7 +61,7 @@ Without KVM (Windows, macOS, most CI runners) QEMU emulates the CPU (TCG) and th
 |---|---|---|
 | `CHR_VERSION` | `7.24.5` | RouterOS version; must be listed in `versions.txt` |
 | `CHR_CACHE` | `$HOME/.cache/lossik-chr` | directory with the downloaded `chr-<version>.img.zip` |
-| `CHR_BOOT_TIMEOUT` | `300` | seconds `chr.sh wait` waits for a reply to `/login` |
+| `CHR_BOOT_TIMEOUT` | `300` | seconds from `chr.sh start` within which `chr.sh wait` (reply to `/login`) and `chr.sh wait-ssh` (SSH banner) must succeed; one budget shared by both |
 | `CHR_PASSWORD` | random per run (`run-live.sh`) | admin password set by `provision.php`; the PHP scripts refuse to run without it |
 | `CHR_RUN_DIR` | `/tmp/lossik-chr` | PID file, serial log and the booted image copy |
 | `CHR_PUBLISH` | unset | debug only: `1` forwards the ports on `0.0.0.0` instead of `127.0.0.1`, so they can be published with `docker run -p 127.0.0.1:18728:18728 …` and reached from the host |

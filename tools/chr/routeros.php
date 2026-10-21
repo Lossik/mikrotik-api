@@ -206,3 +206,4 @@ function chr_env(string $name, ?string $default = null): string
 
 const CHR_HOST = '127.0.0.1';
 const CHR_API_PORT = 18728;
+const CHR_SSH_PORT = 18722;

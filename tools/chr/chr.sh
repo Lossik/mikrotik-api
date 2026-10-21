@@ -4,11 +4,12 @@
 #   bash tools/chr/chr.sh install   install QEMU and unzip (apt) when qemu-system-x86_64 is missing
 #   bash tools/chr/chr.sh start     download (cached, SHA256-checked) and boot a clean copy of the image
 #   bash tools/chr/chr.sh wait      wait until the router answers /login on the API port
+#   bash tools/chr/chr.sh wait-ssh  wait until the SSH port sends an "SSH-" banner line
 #   bash tools/chr/chr.sh stop      stop QEMU (no-op when not running)
 #   bash tools/chr/chr.sh status    print "running" or "not running"
 #
 # Environment: CHR_VERSION (default 7.24.5), CHR_CACHE (default $HOME/.cache/lossik-chr),
-# CHR_BOOT_TIMEOUT (seconds, default 300), CHR_RUN_DIR (default /tmp/lossik-chr),
+# CHR_BOOT_TIMEOUT (seconds from 'start', default 300; shared by 'wait' and 'wait-ssh'), CHR_RUN_DIR (default /tmp/lossik-chr),
 # CHR_PUBLISH=1 (debug only: forward ports on 0.0.0.0 instead of 127.0.0.1).
 #
 # Forwarded ports (container loopback): 18728 -> API 8728, 18729 -> API-SSL 8729, 18722 -> SSH 22.
@@ -22,6 +23,7 @@ CHR_RUN_DIR="${CHR_RUN_DIR:-/tmp/lossik-chr}"
 PID_FILE="$CHR_RUN_DIR/qemu.pid"
 SERIAL_LOG="$CHR_RUN_DIR/serial.log"
 QEMU_OUT="$CHR_RUN_DIR/qemu.out"
+BOOT_STAMP="$CHR_RUN_DIR/boot-start"
 DOWNLOAD_URL="https://download.mikrotik.com/routeros/$CHR_VERSION"
 
 log() { echo "chr.sh: $*"; }
@@ -123,6 +125,7 @@ cmd_start() {
 	[ "${CHR_PUBLISH:-}" = "1" ] && bind=0.0.0.0
 
 	rm -f "$SERIAL_LOG" "$QEMU_OUT"
+	date +%s >"$BOOT_STAMP"
 	qemu-system-x86_64 -m 256 -smp 2 -nographic -monitor none -accel "$accel" \
 		-serial "file:$SERIAL_LOG" \
 		-drive "file=$image,format=raw,if=ide" \
@@ -138,10 +141,18 @@ cmd_start() {
 	log "started CHR $CHR_VERSION (pid $(cat "$PID_FILE")), accel=$accel, ports on $bind: API 18728, API-SSL 18729, SSH 18722"
 }
 
+# Both waits share one budget: CHR_BOOT_TIMEOUT seconds from 'start' (from now when 'start' left no stamp).
+boot_deadline() {
+	local stamp
+	stamp=$(cat "$BOOT_STAMP" 2>/dev/null || true)
+	[ -n "$stamp" ] || stamp=$(date +%s)
+	echo $(( stamp + CHR_BOOT_TIMEOUT ))
+}
+
 cmd_wait() {
 	local t0 deadline attempt out pid
 	t0=$(date +%s)
-	deadline=$(( t0 + CHR_BOOT_TIMEOUT ))
+	deadline=$(boot_deadline)
 	attempt=0
 	while :; do
 		attempt=$(( attempt + 1 ))
@@ -153,9 +164,32 @@ cmd_wait() {
 		if [ "$(date +%s)" -ge "$deadline" ]; then
 			echo "chr.sh: last attempt: $out" >&2
 			serial_tail
-			die "no /login reply within ${CHR_BOOT_TIMEOUT}s"
+			die "no /login reply within ${CHR_BOOT_TIMEOUT}s of start"
 		fi
 		sleep 3
+	done
+}
+
+# A fresh CHR answers the API before its SSH service sends a banner (host keys are generated after boot), and the
+# QEMU port forward accepts TCP connections either way, so readiness is the "SSH-" identification line itself.
+cmd_wait_ssh() {
+	local t0 deadline attempt out pid
+	t0=$(date +%s)
+	deadline=$(boot_deadline)
+	attempt=0
+	while :; do
+		attempt=$(( attempt + 1 ))
+		pid=$(running_pid) || { serial_tail; die "QEMU is not running"; }
+		if out=$(php "$DIR/smoke.php" --ssh-banner 2>&1); then
+			log "SSH sent its banner after $(( $(date +%s) - t0 ))s of waiting (attempt $attempt): $out"
+			return
+		fi
+		if [ "$(date +%s)" -ge "$deadline" ]; then
+			echo "chr.sh: last attempt: $out" >&2
+			serial_tail
+			die "no SSH banner within ${CHR_BOOT_TIMEOUT}s of start"
+		fi
+		sleep 2
 	done
 }
 
@@ -179,7 +213,7 @@ cmd_stop() {
 	else
 		log "not running (stale pid file removed)"
 	fi
-	rm -f "$PID_FILE"
+	rm -f "$PID_FILE" "$BOOT_STAMP"
 	rm -rf "$CHR_RUN_DIR/image"
 }
 
@@ -196,8 +230,9 @@ case "${1:-}" in
 	install) cmd_install ;;
 	start) cmd_start ;;
 	wait) cmd_wait ;;
+	wait-ssh) cmd_wait_ssh ;;
 	stop) cmd_stop ;;
 	status) cmd_status ;;
 	serial-tail) serial_tail ;;
-	*) echo "usage: bash $0 install|start|wait|stop|status" >&2; exit 2 ;;
+	*) echo "usage: bash $0 install|start|wait|wait-ssh|stop|status" >&2; exit 2 ;;
 esac

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Full live run against a MikroTik CHR booted in this container:
 # PHP version check -> dependencies (tools/ci.sh --deps-only) -> install QEMU -> start CHR -> wait for /login
-# -> provision -> smoke -> phpunit --group live -> stop (always).
+# -> provision -> wait for the SSH banner -> smoke -> phpunit --group live -> stop (always).
 #
 #   bash tools/chr/run-live.sh   (from the repository root)
 #
@@ -94,6 +94,12 @@ step_done "boot until login"
 step "provision"
 php "$DIR/provision.php"
 step_done "provisioning"
+
+# After provisioning: provision.php may (re)enable the ssh service, and a fresh CHR sends no SSH banner for a while
+# after the API is up.
+step "wait for SSH banner"
+bash "$DIR/chr.sh" wait-ssh
+step_done "SSH wait"
 
 step "smoke"
 php "$DIR/smoke.php"
