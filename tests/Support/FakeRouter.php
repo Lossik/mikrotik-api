@@ -20,11 +20,22 @@ final class FakeRouter
 
     public const PASSWORD = 'secret';
 
+    /** Challenge of the `legacy-login` scenario unless the test gives another one. */
+    public const LEGACY_CHALLENGE = '0123456789abcdeffedcba9876543210';
+
+    /**
+     * `=response=` the `legacy-login` scenario expects unless the test gives another one: '00' and md5 of a zero byte,
+     * 'secret' and the 16 bytes of LEGACY_CHALLENGE, calculated once by hand (python hashlib and openssl md5), not by
+     * the code under test.
+     */
+    public const LEGACY_RESPONSE = '003b45289c18627761f0eb67731ebe47fc';
+
     /**
      * Scenario name => what the fake router does. Every scenario except bad-login and legacy-login first answers a
      * correct post-6.43 `/login` (`=name=`, `=password=`) with `!done` (wrong credentials: `!trap` + `!done`), then
-     * its script; the script handles the first command after the login unless said otherwise. Scenarios that do not
-     * close the connection then answer every further command like `ok`.
+     * its script (legacy-login does the pre-6.43 MD5 challenge login instead); the script handles the first command
+     * after the login unless said otherwise. Scenarios that do not close the connection then answer every further
+     * command like `ok`.
      */
     public const SCENARIOS = [
         'ok' => '`!re =.id=*1 =name=a`, `!re =.id=*2 =name=b`, `!done` in one write',
@@ -55,8 +66,9 @@ final class FakeRouter
             . '(whatever the credentials)',
         'login-split' => 'answers the login with `!done` whose terminating empty word comes 300 ms later; '
             . 'then every command like `ok`',
-        'legacy-login' => 'answers the login with the pre-6.43 challenge `!done =ret=<32 hex>`; a second sentence '
-            . '(an MD5 response) would be accepted with `!done`',
+        'legacy-login' => 'answers the login with the pre-6.43 challenge `!done =ret=<32 hex>`; only the '
+            . 'second sentence `/login =name=<user> =response=<expected>` is accepted with `!done` (then like `ok`), '
+            . 'anything else gets `!trap =message=invalid user name or password (6)`, `!done`',
         'big' => '3000 `!re =.id=*<hex n> =name=item<n>` (n = 0..2999, last `.id` = `*bb7`), `!done`',
         'wrong-tag' => 'the reply of `ok` with `.tag=999`',
         'reserved-length' => 'only the control byte 0xF8, then closes',
@@ -86,6 +98,8 @@ final class FakeRouter
      * @param string|null $tlsCertificate TLS with this certificate: a PEM file holding the certificate and its key
      * @param bool $tlsAnonymous TLS 1.2 with anonymous DH only (`ADH:@SECLEVEL=0`, no certificate), like api-ssl
      *                           of a router without a certificate
+     * @param string $legacyChallenge legacy-login only: the challenge the router sends (`=ret=` value, as is)
+     * @param string $legacyResponse legacy-login only: the `=response=` value (`00` + md5 hex) it accepts
      */
     private function __construct(
         string $scenario,
@@ -95,6 +109,8 @@ final class FakeRouter
         string $password,
         ?string $tlsCertificate,
         bool $tlsAnonymous,
+        string $legacyChallenge,
+        string $legacyResponse,
     ) {
         if (!isset(self::SCENARIOS[$scenario])) {
             throw new \InvalidArgumentException('Unknown fake router scenario: ' . $scenario);
@@ -106,6 +122,8 @@ final class FakeRouter
             'cancelReply' => $cancelReply,
             'doneBeforeCancel' => $doneBeforeCancel,
             'tls' => $tlsAnonymous ? 'anonymous' : $tlsCertificate,
+            'legacyChallenge' => $legacyChallenge,
+            'legacyResponse' => $legacyResponse,
         ], JSON_THROW_ON_ERROR));
         $process = proc_open([PHP_BINARY, __DIR__ . '/fake-router.php', $script], [
             0 => ['pipe', 'r'],
@@ -140,8 +158,20 @@ final class FakeRouter
         string $password = self::PASSWORD,
         ?string $tlsCertificate = null,
         bool $tlsAnonymous = false,
+        string $legacyChallenge = self::LEGACY_CHALLENGE,
+        string $legacyResponse = self::LEGACY_RESPONSE,
     ): self {
-        return new self($scenario, $cancelReply, $doneBeforeCancel, $user, $password, $tlsCertificate, $tlsAnonymous);
+        return new self(
+            $scenario,
+            $cancelReply,
+            $doneBeforeCancel,
+            $user,
+            $password,
+            $tlsCertificate,
+            $tlsAnonymous,
+            $legacyChallenge,
+            $legacyResponse,
+        );
     }
 
     public function port(): int

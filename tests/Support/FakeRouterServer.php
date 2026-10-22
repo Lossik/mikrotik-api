@@ -54,6 +54,8 @@ final class FakeRouterServer
     /**
      * @param list<string> $cancelReply
      * @param string|null $tls null = plain TCP, 'anonymous' = ADH only, otherwise a PEM file (certificate and key)
+     * @param string $legacyChallenge `legacy-login` only: the `=ret=` value of the challenge, as sent
+     * @param string $legacyResponse `legacy-login` only: the `=response=` value the client has to answer with
      */
     public function __construct(
         private readonly string $scenario,
@@ -62,6 +64,8 @@ final class FakeRouterServer
         private readonly array $cancelReply,
         private readonly bool $doneBeforeCancel,
         private readonly ?string $tls,
+        private readonly string $legacyChallenge,
+        private readonly string $legacyResponse,
     ) {
     }
 
@@ -76,6 +80,8 @@ final class FakeRouterServer
             || !is_array($script['cancelReply'] ?? null)
             || !is_bool($script['doneBeforeCancel'] ?? null)
             || !(is_string($script['tls'] ?? null) || ($script['tls'] ?? null) === null)
+            || !is_string($script['legacyChallenge'] ?? null)
+            || !is_string($script['legacyResponse'] ?? null)
         ) {
             throw new \InvalidArgumentException('usage: php fake-router.php <base64 json script>');
         }
@@ -91,6 +97,8 @@ final class FakeRouterServer
             $cancelReply,
             $script['doneBeforeCancel'],
             $script['tls'] ?? null,
+            $script['legacyChallenge'],
+            $script['legacyResponse'],
         );
     }
 
@@ -183,9 +191,19 @@ final class FakeRouterServer
 
                 return;
             case 'legacy-login':
-                // pre-6.43 challenge: a client that answers it with an MD5 response is let in
-                $this->send($this->sentence(['!done', '=ret=' . str_repeat('ab', 16)], $tag));
+                // pre-6.43 challenge: only the expected MD5 response (given by the script, not computed here) is let in
+                $this->send($this->sentence(['!done', '=ret=' . $this->legacyChallenge], $tag));
                 $response = $this->receive();
+                $expected = ['/login', '=name=' . $this->user, '=response=' . $this->legacyResponse];
+                if (self::withoutTag($response) !== $expected) {
+                    $this->send(
+                        $this->sentence(['!trap', '=message=invalid user name or password (6)'], self::tagOf($response))
+                        . $this->sentence(['!done'], self::tagOf($response)),
+                    );
+                    $this->drain();
+
+                    return;
+                }
                 $this->send($this->sentence(['!done'], self::tagOf($response)));
                 $this->serveOk();
 

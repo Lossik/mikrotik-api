@@ -46,7 +46,7 @@ final class TlsLiveTest extends LiveTestCase
         self::assertNotNull($this->tlsClient(TlsOptions::unverified())->version());
 
         $raw = $this->raw();
-        $service = $raw->rows('/ip/service/print', ['?name=api-ssl', '?dynamic=false', '.proplist=.id,certificate'])[0]
+        $service = $raw->rows('/ip/service/print', ['?name=api-ssl', '?dynamic=false', '=.proplist=.id,certificate'])[0]
             ?? [];
         $certificate = $service['certificate'] ?? '';
         self::assertSame('test', $certificate);
@@ -86,7 +86,7 @@ final class TlsLiveTest extends LiveTestCase
     private function certificateFingerprint(): string
     {
         $raw = $this->raw();
-        $certificate = $raw->rows('/certificate/print', ['?name=test', '.proplist=fingerprint'])[0] ?? [];
+        $certificate = $raw->rows('/certificate/print', ['?name=test', '=.proplist=fingerprint'])[0] ?? [];
         $raw->close();
         self::assertMatchesRegularExpression('/^[0-9a-f]{64}$/', $certificate['fingerprint'] ?? '');
 

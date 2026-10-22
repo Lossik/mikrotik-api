@@ -32,7 +32,7 @@ final class StreamLiveTest extends LiveTestCase
     public function testListenDeliversChangesAndCancelKeepsTheConnectionUsable(): void
     {
         $raw = $this->raw();
-        $loop = $raw->rows('/interface/print', ['?name=lo', '.proplist=.id,comment'])[0] ?? [];
+        $loop = $raw->rows('/interface/print', ['?name=lo', '=.proplist=.id,comment'])[0] ?? [];
         $client = new Client($this->transport());
         $rows = [];
         $bridgeId = null;

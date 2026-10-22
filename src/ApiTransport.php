@@ -28,7 +28,8 @@ use Lossik\Mikrotik\Api\Protocol\WordCodec;
  * as TrapException only after `!done`, so the connection stays usable. Any ConnectionException (EOF, a time limit,
  * `!fatal`, a protocol error) closes the transport; every further call then throws ConnectionException without I/O.
  * stream() delivers the rows of a long-running command (`listen`) as they arrive and cancels it with `/cancel`.
- * Only the post-6.43 login is supported (RouterOS 6.43 and newer).
+ * Both logins are supported: the post-6.43 one, and the legacy MD5 challenge login of older RouterOS (implemented
+ * by the documented scheme and tested against the fake router only; not yet run against a real RouterOS before 6.43).
  */
 final class ApiTransport implements StreamingTransport
 {
@@ -58,8 +59,8 @@ final class ApiTransport implements StreamingTransport
      *                          response ran out of idleTimeout / responseTimeout
      * @throws ConnectionException the device is unreachable or closed the connection, or the TLS handshake failed
      *                             (the certificate or its fingerprint did not verify, no common cipher)
-     * @throws AuthenticationException wrong user name or password, or the device wants the legacy MD5 login of
-     *                                 RouterOS before 6.43 (not supported; no MD5 response is ever sent)
+     * @throws AuthenticationException wrong user name or password (also at the legacy MD5 login)
+     * @throws ProtocolException the legacy login challenge of the device is malformed
      * @throws CommunicationException
      */
     public static function connect(
@@ -183,19 +184,35 @@ final class ApiTransport implements StreamingTransport
     }
 
     /**
+     * Logs in with `/login =name= =password=` (RouterOS 6.43 and newer). A reply that carries `=ret=<32 hex>` is the
+     * challenge of the legacy login of older RouterOS, which is answered with `/login =name= =response=00<md5>`,
+     * md5 over a zero byte, the password and the decoded challenge. The exchange (`=ret=` of 32 hex digits, then
+     * `=response=00` and 32 hex digits) is shown in the examples of the API manual,
+     * https://help.mikrotik.com/docs/spaces/ROS/pages/47579160/API ("Initial login"); the formula comes from the former
+     * MikroTik wiki page Manual:API, which the manual no longer spells out.
+     * The first sentence already carries the password in clear (a router that answers with a challenge ignores it),
+     * so plain TCP shows it to the network even when the response is sent; use TLS for any router that is not on a
+     * trusted segment.
+     *
+     * @throws AuthenticationException the device refused the user name or the password
+     * @throws ProtocolException the challenge is not 32 hexadecimal digits
      * @throws CommunicationException
      */
     private function login(string $user, string $password): void
     {
         try {
-            $result = $this->exchange(['/login', '=name=' . $user, '=password=' . $password]);
+            $challenge = $this->exchange(['/login', '=name=' . $user, '=password=' . $password])->ret;
+            if ($challenge === null) {
+                return;
+            }
+            if (preg_match('/^[0-9a-f]{32}$/i', $challenge) !== 1) {
+                throw new ProtocolException('The login challenge of the device is not 32 hexadecimal digits');
+            }
+            // the digest covers the password as the router receives it, i.e. after the charset conversion
+            $digest = md5("\x00" . $this->toDevice($password) . (string) hex2bin($challenge));
+            $this->exchange(['/login', '=name=' . $user, '=response=00' . $digest]);
         } catch (TrapException $e) {
             throw new AuthenticationException($e->getMessage(), 0, $e);
-        }
-        if ($result->ret !== null) {
-            throw new AuthenticationException(
-                'The device requires the legacy MD5 login of RouterOS before 6.43, which is not supported',
-            );
         }
     }
 

@@ -98,7 +98,7 @@ abstract class LiveTestCase extends TestCase
         $raw = RawApi::connect($this->env);
         try {
             foreach (self::TAGGED_MENUS as $menu) {
-                foreach ($raw->rows($menu . '/print', ['?comment=' . self::TAG, '.proplist=.id']) as $row) {
+                foreach ($raw->rows($menu . '/print', ['?comment=' . self::TAG, '=.proplist=.id']) as $row) {
                     $raw->rows($menu . '/remove', ['=.id=' . $row['.id']]);
                 }
             }

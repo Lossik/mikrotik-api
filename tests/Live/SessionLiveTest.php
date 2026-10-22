@@ -48,7 +48,7 @@ final class SessionLiveTest extends LiveTestCase
         $tagged = [];
         $types = [];
         $commands = [
-            ['/system/resource/print', ['.proplist=version']],
+            ['/system/resource/print', ['=.proplist=version']],
             ['/ip/firewall/address-list/print', ['?list=lossik-live-none']],
             ['/lossik-live-none', []],
             ['/ip/firewall/address-list/add', ['=list=lossik-live-tag', '=address=10.97.0.1', '=comment=' . self::TAG]],

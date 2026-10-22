@@ -181,15 +181,84 @@ final class ApiTransportTest extends TestCase
         self::assertLessThan(2.0, (hrtime(true) - $started) / 1e9);
     }
 
+    /**
+     * T17 (FAQ-8a): the legacy MD5 login of RouterOS before 6.43. The expected `=response=` values are written out:
+     * '00' + md5(zero byte . password bytes . the 16 bytes of the challenge 0123456789abcdeffedcba9876543210),
+     * calculated outside the code under test (python hashlib, cross-checked with openssl md5). The fake router
+     * accepts nothing but the expected response, so a wrong digest is an AuthenticationException.
+     *
+     * @return iterable<string, array{string, ApiOptions, string}> password, options, expected `=response=` value
+     */
+    public static function legacyLogins(): iterable
+    {
+        yield 'ASCII password' => ['secret', new ApiOptions(), '003b45289c18627761f0eb67731ebe47fc'];
+        yield 'non-ASCII password, UTF-8 bytes' => [
+            'Heslo-žlutý',
+            new ApiOptions(),
+            '000a14536309f738932bea0545b6b5fd4e',
+        ];
+        yield 'non-ASCII password, windows-1250 bytes' => [
+            'Heslo-žlutý',
+            new ApiOptions(charset: 'windows-1250'),
+            '000f32207d554f7ef54a6961cd2922a32c',
+        ];
+    }
+
+    #[DataProvider('legacyLogins')]
+    public function testLegacyChallengeIsAnsweredWithTheMd5ResponseAndTheSessionWorks(
+        string $password,
+        ApiOptions $options,
+        string $response,
+    ): void {
+        $router = FakeRouter::start('legacy-login', legacyResponse: $response);
+        $transport = self::connect($router, $options, $password);
+
+        $rows = $transport->execute(new Command('/ip/address', 'print'))->rows;
+        $transport->close();
+
+        self::assertSame(self::OK_ROWS, $rows);
+        $received = $router->received();
+        self::assertCount(3, $received);
+        self::assertSame(
+            ['/login', '=name=' . FakeRouter::USER, '=response=' . $response],
+            self::withoutTag($received[1]),
+            'the response sentence carries no password',
+        );
+    }
+
     /** T17 */
-    public function testLegacyChallengeIsRefusedWithoutSendingAnMd5Response(): void
+    public function testWrongPasswordAtTheLegacyLoginIsAnAuthenticationExceptionAndNothingFollows(): void
     {
         $router = FakeRouter::start('legacy-login');
 
         try {
-            self::connect($router);
+            self::connect($router, password: 'wrong');
             self::fail('AuthenticationException expected');
         } catch (AuthenticationException) {
+        }
+        self::assertCount(2, $router->received(), 'the login and its MD5 response, no command');
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function malformedChallenges(): iterable
+    {
+        yield 'empty' => [''];
+        yield '31 hex digits' => ['0123456789abcdeffedcba987654321'];
+        yield '33 hex digits' => ['0123456789abcdeffedcba98765432100'];
+        yield '32 characters, not all hex' => ['0123456789abcdeffedcba987654321g'];
+    }
+
+    #[DataProvider('malformedChallenges')]
+    public function testMalformedLegacyChallengeIsAProtocolExceptionAndNoResponseIsSent(string $challenge): void
+    {
+        $router = FakeRouter::start('legacy-login', legacyChallenge: $challenge);
+
+        try {
+            self::connect($router);
+            self::fail('ProtocolException expected');
+        } catch (ProtocolException) {
         }
         self::assertCount(1, $router->received());
     }
@@ -304,9 +373,12 @@ final class ApiTransportTest extends TestCase
     /**
      * Keep the router in a variable for the whole test: a destroyed FakeRouter stops its process.
      */
-    private static function connect(FakeRouter $router, ApiOptions $options = new ApiOptions()): ApiTransport
-    {
-        return ApiTransport::connect('127.0.0.1', FakeRouter::USER, FakeRouter::PASSWORD, new ApiOptions(
+    private static function connect(
+        FakeRouter $router,
+        ApiOptions $options = new ApiOptions(),
+        string $password = FakeRouter::PASSWORD,
+    ): ApiTransport {
+        return ApiTransport::connect('127.0.0.1', FakeRouter::USER, $password, new ApiOptions(
             port: $router->port(),
             connectTimeout: $options->connectTimeout,
             idleTimeout: $options->idleTimeout,

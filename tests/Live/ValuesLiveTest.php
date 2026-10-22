@@ -30,7 +30,7 @@ final class ValuesLiveTest extends LiveTestCase
     {
         if (isset($this->env)) {
             $raw = $this->raw();
-            foreach ($raw->rows('/ip/firewall/address-list/print', ['?list=' . self::LIST, '.proplist=.id']) as $row) {
+            foreach ($raw->rows('/ip/firewall/address-list/print', ['?list=' . self::LIST, '=.proplist=.id']) as $row) {
                 $raw->rows('/ip/firewall/address-list/remove', ['=.id=' . $row['.id']]);
             }
             $raw->close();
