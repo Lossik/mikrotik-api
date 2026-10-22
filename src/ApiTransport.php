@@ -427,7 +427,7 @@ final class ApiTransport implements StreamingTransport
     /**
      * The one place that decides whether a reply belongs to the command: its `.tag` must be the command's tag.
      * `!fatal` is taken whatever its tag (the device closes the connection after it). A missing tag counts as a
-     * foreign one. Whether RouterOS tags every reply (`!empty`, `!trap`, `!re`) is to be measured on CHR (risk U20).
+     * foreign one. Measured on CHR 7.24.5 and 7.23.8: every reply carries the tag except `!fatal`.
      *
      * @throws ProtocolException
      */

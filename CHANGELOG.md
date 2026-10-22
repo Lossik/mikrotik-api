@@ -6,9 +6,107 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ## [3.0.0] - Unreleased
 
-In development. New namespace `Lossik\Mikrotik\Api\` (no class of 2.x remains), built on
-`lossik/device-communication` 3.0; requires `ext-openssl` and `ext-iconv`. The full list of changes and the upgrade
-guide come with the release.
+A rewrite on top of `lossik/device-communication` 3.0, a transport-independent contract. No class of 2.x remains, so
+mixed code fails with "Class not found" instead of changing behaviour silently. The upgrade guide comes with the
+release.
+
+### Changed
+
+- **New namespace `Lossik\Mikrotik\Api\`.** `ApiTransport::connect($host, $user, $password, ApiOptions)` replaces
+  `Connection`, `Options` and `Command`; commands run through `Client` and `Menu` of device-communication.
+  `Options` (`port`, `ssl`, `sslPort`, `timeout`, `localCharset`, `remoteCharset`) becomes `ApiOptions` (`port`,
+  `connectTimeout`, `idleTimeout`, `responseTimeout`, `cancelTimeout`, `charset`, `tls`) and `TlsOptions`.
+- Requires `lossik/device-communication` `^3.0`, `ext-openssl` (2.x: only suggested) and `ext-iconv`.
+- **Supported are only patched PHP releases: 8.2.35+, 8.3.36+, 8.4.27+ and 8.5.12+**, as in 2.1.0.
+- Policy: the PHP minimum is raised only in a minor release, with a note in this changelog.
+- **Menu API** (`Menu`, from device-communication): `print`, `first`, `add`, `update`, `delete`, `run`, `listen` and
+  `Client::version()`. `get($where, $callback)` becomes `print(Query)` plus a filter in PHP, `command()` becomes
+  `run()`, `del` becomes `delete`.
+  - `first()` returns `null` when nothing matches (2.x `getOneItem()`: `[]`).
+  - `add()` returns the ID as `?string` whenever the router sends `=ret=`, also when it arrives in another TCP
+    segment than `!done`; `null` when it sends none (2.x: the ID only when both came in one segment, otherwise `[]`).
+  - `update()` and `delete()` return the number of items; when the query matches nothing, nothing is sent (2.x sent
+    an empty `.id=`).
+- **Removed**: the deprecated aliases `addItem`, `updateItem`, `updateItems`, `updateOneItem`, `getItem`,
+  `getItems`, `getOneItem`, `delItem`, `delItems`, `delOneItem`; the magic command methods (`__call`); `FormatHelper`;
+  the static helpers `Definition::arrayChangeKeyName()` and `Definition::isIterable()`.
+- **The `~` key prefix is gone.** In 2.x `Connection::comm()` sent `k~v`, which RouterOS does not support, and
+  `Command::get()` filtered by prefix on the client for a value starting with `~`. `Query` has no such condition;
+  filter the rows in PHP (`array_filter()` with `str_starts_with()`).
+- **Typed exceptions** instead of one `RuntimeException` with numeric codes: `ConnectionException` (unreachable,
+  TLS handshake, EOF, a call on a closed transport), `TimeoutException` (`->limit`), `FatalException`,
+  `ProtocolException`, `AuthenticationException` and `TrapException` (`->category`, `->traps()`: all traps of the
+  response, where 2.x kept the first message only). After a `ConnectionException` or a subclass the transport is
+  closed and every further call throws `ConnectionException`; a `TrapException` leaves it open.
+- **Time limits** replace the single `Options::$timeout` (3 s, used for connecting and for reads): `connectTimeout`
+  10 s (`TimeoutException` with `->limit === 'connectTimeout'`), `idleTimeout` 60 s (silence while a response is
+  read), `responseTimeout` (off by default; not applied to `listen`) and `cancelTimeout` 10 s. A router that goes
+  silent or closes the connection ends the call with an exception instead of blocking it.
+- **Charset**: `UTF-8`, passed through unchanged, is the default (2.x: `WINDOWS-1250`). Any other `charset` (e.g.
+  `windows-1250`) converts every word both ways. A character the charset cannot represent is an error:
+  `\InvalidArgumentException` before anything is sent (the connection stays open), or `ProtocolException` when it
+  comes from the router; 2.x dropped or transliterated it silently (`//IGNORE//TRANSLIT`). Data stored through 2.x
+  with the old default are cp1250 bytes: read them with `charset: 'windows-1250'`.
+- **TLS** is verified by default: `TlsOptions::verified()` (chain and host name), `TlsOptions::fingerprint()` (a
+  pinned self-signed certificate) or, explicitly, `TlsOptions::unverified()`, which encrypts but does not
+  authenticate the router and is **dangerous**. `ApiOptions::$tls` selects TLS and the port 8729 unless `port`
+  says otherwise. 2.x always offered `ADH:ALL` and checked nothing; that did not even connect to a router without
+  a certificate on OpenSSL 1.1.0+.
+- **Replies are matched by `.tag`.** A reply without a `.tag` (except `!fatal`) or with a foreign one is a
+  `ProtocolException`. RouterOS 7.23.8 and 7.24.5 tag every sentence they send except `!fatal`.
+
+### Fixed
+
+The known issues of 2.x:
+
+- **Values** are sent and read whole: `=comment=a=b=c` is `a=b=c` (2.x: `a`), a multi-line value stays one word, and
+  leading and trailing spaces are kept (2.x split on newlines and trimmed).
+- **A reply is read sentence by sentence up to `!done`**, not up to what PHP's stream buffer holds: a reply split
+  across TCP segments is read whole, the `!done` after a `!trap` is not left for the next command, `=ret=` of `add`
+  is never lost, and the login reply is read the same way.
+- **The read loop ends**: silence is a `TimeoutException`, EOF (also inside a word or a word length) a
+  `ConnectionException`, with no endless loop; a pause inside a multi-byte word length no longer throws `TypeError`.
+- **After `!fatal` or `close()`** the transport reports itself closed (`isOpen()`), and a command on it throws
+  `ConnectionException` instead of running into the read loop or `TypeError`.
+
+### Added
+
+- Every command carries a `.tag`; **`listen`** streams the rows of a long-running command and is cancelled with
+  `/cancel` (the callback returns `false`), bounded by `idleTimeout` and `cancelTimeout`. Rows of `/interface`
+  come without the state before `listen`, a removed item as `.id` and `.dead`.
+- `Query` conditions `where`, `has`, `hasNot`, `less`, `greater`, `and`, `or`, `not`, sent as the stack words of
+  the API (`?k=v`, `?k`, `?-k`, `?<k=v`, `?>k=v`, `?#&`, `?#|`, `?#!`).
+- A live test suite against a real CHR (`tools/chr`, RouterOS 7.24.5 and 7.23.8).
+
+### Notes
+
+- RouterOS before 6.43 logs in with the MD5 challenge, as in 2.x. That login is implemented and tested against a
+  fake router only; it has not been run through this library against a real RouterOS before 6.43 (a bare-socket
+  client was checked on CHR 6.42.12). The first `/login` sentence carries the password in clear text (the old router
+  ignores it and sends the challenge), so use TLS on any network you do not trust.
+- Known limits: one command at a time per connection; no TCP keepalive (it would need `ext-sockets`), so a router
+  that died without closing the connection is noticed only through an `idleTimeout`; without `responseTimeout` a
+  peer that sends one byte at a time is never cut off. See the README.
+- When the router reboots under a running `listen`, the call ends normally, with `ConnectionException` or, rarely,
+  with `TimeoutException`; it does not hang, and the next call on the transport throws `ConnectionException`.
+
+## [2.1.1] - 2026-10-22
+
+Fixes of the 2.1.0 audit. `src/` and the public API are unchanged.
+
+### Fixed
+
+- `composer.json` allowed `lossik/device-communication` 2.0.0, which lacks the `Command` class this package extends;
+  the minimum is now `^2.0.1` (later 2.x releases stay allowed).
+
+### Tests and CI
+
+- New CI job `lowest` (`tools/ci.sh --prefer-lowest`) runs the suite against the lowest allowed version of every
+  dependency, which would have caught the wrong minimum above.
+- `EofDeprecationTest` fails when the client dies (fatal error) instead of being stopped by the test after the
+  watch window.
+- New `DefinitionLengthTest` covers every shape of a word length prefix (1 to 5 bytes) and a connection closed after
+  each byte of it.
 
 ## [2.1.0] - 2026-10-22
 
