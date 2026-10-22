@@ -7,6 +7,9 @@
          failOnDeprecation="true"
          failOnWarning="true"
          failOnRisky="true"
+         enforceTimeLimit="true"
+         defaultTimeLimit="0"
+         timeoutForMediumTests="10"
          displayDetailsOnTestsThatTriggerDeprecations="true"
          displayDetailsOnTestsThatTriggerWarnings="true">
     <testsuites>

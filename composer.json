@@ -1,30 +1,38 @@
 {
-	"name": "lossik/mikrotik-api",
-	"description": "MikroTik RouterOS API client (binary API protocol over TCP, optionally TLS)",
-	"type": "library",
-	"license": "MIT",
-	"autoload": {
-		"psr-4": {
-			"Lossik\\Device\\Mikrotik\\Api\\": "src/"
-		}
-	},
-	"autoload-dev": {
-		"psr-4": {
-			"Lossik\\Device\\Mikrotik\\Api\\Tests\\": "tests/"
-		}
-	},
-	"require": {
-		"php": "^8.2",
-		"ext-iconv": "*",
-		"lossik/device-communication": "~2.0"
-	},
-	"require-dev": {
-		"phpunit/phpunit": "^11.5"
-	},
-	"suggest": {
-		"ext-openssl": "Needed only for TLS connections (Options::$ssl = true)"
-	},
-	"scripts": {
-		"test": "phpunit"
-	}
+    "name": "lossik/mikrotik-api",
+    "description": "MikroTik RouterOS API client (binary API protocol over TCP, optionally TLS) for lossik/device-communication",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "ext-iconv": "*",
+        "ext-openssl": "*",
+        "lossik/device-communication": "^3.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5",
+        "phpstan/phpstan": "^2.1",
+        "squizlabs/php_codesniffer": "^4.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Lossik\\Mikrotik\\Api\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Lossik\\Mikrotik\\Api\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "test:live": "phpunit --group live",
+        "stan": "phpstan analyse --memory-limit=1G",
+        "cs": "phpcs",
+        "ci": [
+            "@cs",
+            "@stan",
+            "@test"
+        ]
+    }
 }

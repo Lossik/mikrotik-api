@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+# Until lossik/device-communication 3.0.0 is released, tools/ci.sh clones its branch DC_REF (step 3).
+env:
+  DC_REF: ci/3.0
+  DC_URL: https://github.com/Lossik/device-communication.git
+
 jobs:
   unit:
     runs-on: ubuntu-latest
@@ -20,7 +25,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: tools/ci.sh in ${{ matrix.image }}
-        run: docker run --rm -v "$PWD:/app" -w /app ${{ matrix.image }} bash tools/ci.sh
+        run: docker run --rm -v "$PWD:/app" -e DC_REF -e DC_URL -w /app ${{ matrix.image }} bash tools/ci.sh
 
   chr:
     runs-on: ubuntu-latest
@@ -47,5 +52,5 @@ jobs:
           mkdir -p .cache/chr
           KVM=()
           if [ -w /dev/kvm ]; then KVM=(--device /dev/kvm); fi
-          docker run --rm -v "$PWD:/app" -v "$PWD/.cache/chr:/cache" -e CHR_CACHE=/cache -e CHR_VERSION \
+          docker run --rm -v "$PWD:/app" -v "$PWD/.cache/chr:/cache" -e CHR_CACHE=/cache -e CHR_VERSION -e DC_REF -e DC_URL \
             -w /app "${KVM[@]}" php:8.2.35-cli bash tools/chr/run-live.sh
