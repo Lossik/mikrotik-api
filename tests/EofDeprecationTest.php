@@ -11,7 +11,8 @@ use PHPUnit\Framework\TestCase;
  *
  * 2.0.x called ord('') on every pass of the read loop at EOF, which PHP 8.5 reports as deprecated (hundreds of
  * thousands of lines). The loop itself still never ends on 2.x (known issue, fixed in 3.0), so the client runs in a
- * subprocess that is killed after a few seconds; only its deprecation output is checked, never its exit.
+ * subprocess that is killed after a few seconds. Its deprecation output is checked, and that it was still running
+ * when the test stopped it: a client that exited earlier crashed (a fatal error shows no "Deprecated" line).
  * On PHP 8.2-8.4 ord('') is silent, so this test can only fail there for a different reason; PHP 8.5 is the
  * discriminating version.
  */
@@ -54,11 +55,14 @@ final class EofDeprecationTest extends TestCase
 
 		[$deprecations, $kept] = self::countDeprecatedLines($pipes[2], $pipes[1]);
 
+		$status = proc_get_status($client);
 		proc_terminate($client, 9);
 		fclose($pipes[1]);
 		fclose($pipes[2]);
 		proc_close($client);
 
+		// the read loop never ends on 2.x: a client that is gone before the test stopped it has crashed
+		self::assertTrue($status['running'], "The client exited by itself (exit code {$status['exitcode']}), the first lines of its output:\n" . implode("\n", $kept));
 		// the client really logged in and waited for the reply - otherwise "no deprecation" proves nothing
 		self::assertSame(['/ip/address/print'], $router->received()[1] ?? null, implode("\n", $kept));
 		self::assertSame(0, $deprecations, "Deprecated lines on stderr, the first ones:\n" . implode("\n", $kept));
