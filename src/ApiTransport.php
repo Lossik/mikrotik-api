@@ -415,7 +415,7 @@ final class ApiTransport implements StreamingTransport
             $words[] = '=' . $key . '=' . $value;
         }
         if ($command->proplist !== []) {
-            $words[] = '.proplist=' . implode(',', $command->proplist);
+            $words[] = '=.proplist=' . implode(',', $command->proplist);
         }
         if ($command->query !== null) {
             array_push($words, ...QueryCompiler::compile($command->query));

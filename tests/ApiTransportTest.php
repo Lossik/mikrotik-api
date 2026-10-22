@@ -308,7 +308,7 @@ final class ApiTransportTest extends TestCase
             ['?a=1', '?b=2', '?c=3', '?#&', '?#&'],
         ];
         yield 'not' => [Query::not(Query::where('a', '1')), [], ['?a=1', '?#!']];
-        yield 'proplist' => [null, ['.id', 'name'], ['.proplist=.id,name']];
+        yield 'proplist' => [null, ['.id', 'name'], ['=.proplist=.id,name']];
     }
 
     /**

@@ -90,6 +90,36 @@ final class MenuLiveTest extends LiveTestCase
         self::assertSame([], $menu->print($mine));
     }
 
+    /**
+     * The proplist reaches the router as the attribute word `=.proplist=`; with a plain `.proplist=` word RouterOS
+     * ignores it and returns every attribute (measured on CHR 7.24.5). It adds no `.id` the caller did not ask for.
+     *
+     * @return iterable<string, array{list<string>}>
+     */
+    public static function proplists(): iterable
+    {
+        yield 'name only' => [['name']];
+        yield 'id and name' => [['.id', 'name']];
+    }
+
+    /**
+     * @param list<string> $proplist
+     */
+    #[DataProvider('proplists')]
+    public function testPrintReturnsOnlyTheAttributesOfTheProplist(array $proplist): void
+    {
+        $rows = $this->client()->menu('/interface')->print(proplist: $proplist);
+
+        self::assertNotSame([], $rows);
+        foreach ($rows as $row) {
+            $keys = array_keys($row);
+            sort($keys);
+            $expected = $proplist;
+            sort($expected);
+            self::assertSame($expected, $keys);
+        }
+    }
+
     public function testDhcpServerCanBePrinted(): void
     {
         // the CHR has no DHCP server and the live tests add none

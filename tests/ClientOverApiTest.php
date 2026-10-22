@@ -37,10 +37,10 @@ final class ClientOverApiTest extends TestCase
         self::assertSame(1, $updated);
         self::assertSame(2, $deleted);
         self::assertSame([
-            ['/ip/firewall/address-list/print', '.proplist=.id,address', '?list=x'],
-            ['/ip/firewall/address-list/print', '.proplist=.id', '?list=x'],
+            ['/ip/firewall/address-list/print', '=.proplist=.id,address', '?list=x'],
+            ['/ip/firewall/address-list/print', '=.proplist=.id', '?list=x'],
             ['/ip/firewall/address-list/set', '=.id=*1', '=disabled=yes'],
-            ['/ip/firewall/address-list/print', '.proplist=.id', '?list=x'],
+            ['/ip/firewall/address-list/print', '=.proplist=.id', '?list=x'],
             ['/ip/firewall/address-list/remove', '=.id=*1,*2'],
         ], array_map(self::withoutTag(...), array_slice($router->received(), 1)));
     }
