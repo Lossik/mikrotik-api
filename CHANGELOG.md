@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/).
 
-## [2.1.1] - Unreleased
+## [2.1.1] - 2026-10-22
 
 Fixes of the 2.1.0 audit. `src/` and the public API are unchanged.
 
