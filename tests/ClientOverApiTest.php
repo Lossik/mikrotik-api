@@ -9,12 +9,14 @@ use Lossik\DeviceCommunication\Query;
 use Lossik\Mikrotik\Api\ApiOptions;
 use Lossik\Mikrotik\Api\ApiTransport;
 use Lossik\Mikrotik\Api\Tests\Support\FakeRouter;
+use PHPUnit\Framework\Attributes\Medium;
 use PHPUnit\Framework\TestCase;
 
 /**
  * Client of lossik/device-communication over ApiTransport against the fake router (plan F3f): a wiring check in the
  * shape of the first consumer, not a copy of the Menu unit tests (device-communication) or of the query words (T21).
  */
+#[Medium]
 final class ClientOverApiTest extends TestCase
 {
     private const OK_ROWS = [['.id' => '*1', 'name' => 'a'], ['.id' => '*2', 'name' => 'b']];
