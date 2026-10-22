@@ -11,8 +11,8 @@ use Lossik\DeviceCommunication\ConnectionException;
 use Lossik\DeviceCommunication\FatalException;
 use Lossik\DeviceCommunication\ProtocolException;
 use Lossik\DeviceCommunication\Result;
+use Lossik\DeviceCommunication\StreamingTransport;
 use Lossik\DeviceCommunication\TimeoutException;
-use Lossik\DeviceCommunication\Transport;
 use Lossik\DeviceCommunication\TrapException;
 use Lossik\Mikrotik\Api\Protocol\QueryCompiler;
 use Lossik\Mikrotik\Api\Protocol\Reply;
@@ -27,9 +27,10 @@ use Lossik\Mikrotik\Api\Protocol\WordCodec;
  * Every command carries its own `.tag`; its response is read sentence by sentence up to `!done`. A `!trap` is thrown
  * as TrapException only after `!done`, so the connection stays usable. Any ConnectionException (EOF, a time limit,
  * `!fatal`, a protocol error) closes the transport; every further call then throws ConnectionException without I/O.
+ * stream() delivers the rows of a long-running command (`listen`) as they arrive and cancels it with `/cancel`.
  * Only the post-6.43 login is supported (RouterOS 6.43 and newer).
  */
-final class ApiTransport implements Transport
+final class ApiTransport implements StreamingTransport
 {
     /** @var resource|null */
     private $stream;
@@ -126,18 +127,40 @@ final class ApiTransport implements Transport
      */
     public function execute(Command $command): Result
     {
-        $words = [rtrim($command->menu, '/') . '/' . $command->verb];
-        foreach ($command->attributes as $key => $value) {
-            $words[] = '=' . $key . '=' . $value;
-        }
-        if ($command->proplist !== []) {
-            $words[] = '.proplist=' . implode(',', $command->proplist);
-        }
-        if ($command->query !== null) {
-            array_push($words, ...QueryCompiler::compile($command->query));
-        }
+        return $this->exchange(self::words($command));
+    }
 
-        return $this->exchange($words);
+    /**
+     * Runs a long-running command (`listen`, `monitor`, …) and hands every row to $onRow as it arrives.
+     *
+     * The stream ends when the device finishes the command (`!done`). When $onRow returns false, or throws, the
+     * command is cancelled: `/cancel` with its own `.tag` is sent, no further row reaches $onRow, and the replies
+     * are read until both the command and `/cancel` are done (in any order, within cancelTimeout). The transport is
+     * then usable again; an exception of $onRow is rethrown after that. The `!trap` of the command that reports
+     * the cancel (`interrupted`) and a `!trap` of `/cancel` itself (the command had already finished) are not
+     * errors. No other command may run on this transport while it streams (there is no keepalive either).
+     *
+     * @param callable(array<string, string>): bool $onRow returns false = cancel
+     * @param float|null $idleTimeout the longest silence of the device while streaming; null = no limit
+     * @throws TrapException the device refused the command (the transport stays open)
+     * @throws TimeoutException idleTimeout ran out while streaming ('idleTimeout'), or the device did not finish
+     *                          the cancelled command within cancelTimeout ('cancelTimeout'); the transport is closed
+     * @throws ConnectionException the transport is closed, or got closed by this call (EOF, `!fatal`, protocol
+     *                             error)
+     * @throws \InvalidArgumentException a word cannot be converted to the configured charset (nothing was sent)
+     */
+    public function stream(Command $command, callable $onRow, ?float $idleTimeout = null): void
+    {
+        [$reader, $tag] = $this->send(self::words($command));
+        try {
+            $callbackError = $this->readStream($reader, $tag, $onRow, $idleTimeout);
+        } catch (ConnectionException $e) {
+            $this->close();
+            throw $e;
+        }
+        if ($callbackError !== null) {
+            throw $callbackError;
+        }
     }
 
     public function close(): void
@@ -185,6 +208,25 @@ final class ApiTransport implements Transport
      */
     private function exchange(array $words): Result
     {
+        [$reader, $tag] = $this->send($words);
+        try {
+            return $this->readResponse($reader, $tag);
+        } catch (ConnectionException $e) {
+            $this->close();
+            throw $e;
+        }
+    }
+
+    /**
+     * Sends one command with a new `.tag` and starts the idle clock.
+     *
+     * @param list<string> $words the command without `.tag`
+     * @return array{SentenceReader, string} the reader and the tag of the command
+     * @throws ConnectionException the transport is closed, or writing failed (then it is closed)
+     * @throws \InvalidArgumentException a word cannot be converted to the configured charset (nothing was sent)
+     */
+    private function send(array $words): array
+    {
         $stream = $this->stream;
         $reader = $this->reader;
         if ($stream === null || $reader === null) {
@@ -199,12 +241,86 @@ final class ApiTransport implements Transport
 
         try {
             $this->write($stream, $bytes);
-            $reader->restartIdleClock();
-
-            return $this->readResponse($reader, $tag);
         } catch (ConnectionException $e) {
             $this->close();
             throw $e;
+        }
+        $reader->restartIdleClock();
+
+        return [$reader, $tag];
+    }
+
+    /**
+     * Reads the replies of the streamed command $tag; cancels it when $onRow returns false or throws.
+     *
+     * @param callable(array<string, string>): bool $onRow
+     * @return \Throwable|null what $onRow threw (the command was then cancelled and drained)
+     * @throws TrapException
+     * @throws ConnectionException
+     */
+    private function readStream(SentenceReader $reader, string $tag, callable $onRow, ?float $idleTimeout): ?\Throwable
+    {
+        $traps = [];
+        $callbackError = null;
+        // set once /cancel is sent: its tag, and the time by which both commands must be done
+        $cancelTag = null;
+        $cancelDeadline = null;
+        $commandDone = false;
+        $cancelDone = false;
+        while (true) {
+            $words = array_map(
+                fn (string $word): string => $this->fromDevice($word),
+                $cancelTag === null
+                    ? $reader->readSentence($idleTimeout, null)
+                    : $reader->readSentence(null, $cancelDeadline, 'cancelTimeout'),
+            );
+            $reply = Reply::fromWords($words);
+            if ($cancelTag !== null && $reply->tag === $cancelTag && $reply->type !== '!fatal') {
+                // the replies of /cancel: a !trap means the command had already finished; only its !done matters
+                if ($reply->type === '!done') {
+                    $cancelDone = true;
+                }
+            } else {
+                $this->checkTag($reply, $tag);
+                switch ($reply->type) {
+                    case '!re':
+                        if ($cancelTag !== null) {
+                            break;
+                        }
+                        try {
+                            $continue = $onRow($reply->attributes) !== false;
+                        } catch (\Throwable $e) {
+                            $callbackError = $e;
+                            $continue = false;
+                        }
+                        if (!$continue) {
+                            [, $cancelTag] = $this->send(['/cancel', '=tag=' . $tag]);
+                            $cancelDeadline = SentenceReader::now() + $this->options->cancelTimeout;
+                        }
+                        break;
+                    case '!trap':
+                        if ($cancelTag === null || ($reply->attributes['message'] ?? null) !== 'interrupted') {
+                            $traps[] = $reply->attributes;
+                        }
+                        break;
+                    case '!empty':
+                        break;
+                    case '!done':
+                        $commandDone = true;
+                        break;
+                    case '!fatal':
+                        throw self::fatal($reply);
+                    default:
+                        throw new ProtocolException('Unknown reply sentence type ' . $reply->type);
+                }
+            }
+            if ($commandDone && ($cancelTag === null || $cancelDone)) {
+                if ($traps !== [] && $callbackError === null) {
+                    throw self::trap($traps);
+                }
+
+                return $callbackError;
+            }
         }
     }
 
@@ -237,22 +353,58 @@ final class ApiTransport implements Transport
                     break;
                 case '!done':
                     if ($traps !== []) {
-                        $category = $traps[0]['category'] ?? null;
-                        throw new TrapException(
-                            $traps[0]['message'] ?? 'The device refused the command',
-                            $category !== null && ctype_digit($category) ? (int) $category : null,
-                            $traps,
-                        );
+                        throw self::trap($traps);
                     }
 
                     return new Result($rows, $reply->attributes['ret'] ?? null);
                 case '!fatal':
-                    $reason = $reply->otherWords[0] ?? $reply->attributes['message'] ?? '';
-                    throw new FatalException($reason !== '' ? $reason : 'The device ended the session', $reason);
+                    throw self::fatal($reply);
                 default:
                     throw new ProtocolException('Unknown reply sentence type ' . $reply->type);
             }
         }
+    }
+
+    /**
+     * @param non-empty-list<array<string, string>> $traps the attributes of every `!trap` of the response
+     */
+    private static function trap(array $traps): TrapException
+    {
+        $category = $traps[0]['category'] ?? null;
+
+        return new TrapException(
+            $traps[0]['message'] ?? 'The device refused the command',
+            $category !== null && ctype_digit($category) ? (int) $category : null,
+            $traps,
+        );
+    }
+
+    private static function fatal(Reply $reply): FatalException
+    {
+        $reason = $reply->otherWords[0] ?? $reply->attributes['message'] ?? '';
+
+        return new FatalException($reason !== '' ? $reason : 'The device ended the session', $reason);
+    }
+
+    /**
+     * The words of a command, without `.tag`.
+     *
+     * @return list<string>
+     */
+    private static function words(Command $command): array
+    {
+        $words = [rtrim($command->menu, '/') . '/' . $command->verb];
+        foreach ($command->attributes as $key => $value) {
+            $words[] = '=' . $key . '=' . $value;
+        }
+        if ($command->proplist !== []) {
+            $words[] = '.proplist=' . implode(',', $command->proplist);
+        }
+        if ($command->query !== null) {
+            array_push($words, ...QueryCompiler::compile($command->query));
+        }
+
+        return $words;
     }
 
     /**

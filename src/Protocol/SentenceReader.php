@@ -58,14 +58,16 @@ final class SentenceReader
     }
 
     /**
-     * @param float $idleTimeout the longest silence since the last received byte (or the last restartIdleClock())
-     * @param float|null $responseDeadline the time (by now()) by which the sentence must be complete; null = none
+     * @param float|null $idleTimeout the longest silence since the last received byte (or the last
+     *                                restartIdleClock()); null = none
+     * @param float|null $deadline the time (by now()) by which the sentence must be complete; null = none
+     * @param string $deadlineName the name of the limit behind $deadline, for the TimeoutException
      * @return list<string> the words of the next sentence, without its terminating empty word
      * @throws ProtocolException a control byte (0xF8 and above) in place of a word length
-     * @throws TimeoutException the idle or the response limit ran out ('idleTimeout', 'responseTimeout')
+     * @throws TimeoutException the idle limit ('idleTimeout') or the deadline ($deadlineName) ran out
      * @throws ConnectionException the peer closed the connection
      */
-    public function readSentence(float $idleTimeout, ?float $responseDeadline): array
+    public function readSentence(?float $idleTimeout, ?float $deadline, string $deadlineName = 'responseTimeout'): array
     {
         while (true) {
             $sentence = $this->takeSentence();
@@ -76,17 +78,20 @@ final class SentenceReader
                 throw new ConnectionException('The device closed the connection');
             }
             $now = self::now();
-            if ($responseDeadline !== null && $now >= $responseDeadline) {
-                throw new TimeoutException('The response did not complete within responseTimeout', 'responseTimeout');
+            if ($deadline !== null && $now >= $deadline) {
+                throw new TimeoutException(
+                    sprintf('The response did not complete within %s', $deadlineName),
+                    $deadlineName,
+                );
             }
-            $idleDeadline = $this->lastByteAt + $idleTimeout;
+            $idleDeadline = $this->lastByteAt + ($idleTimeout ?? INF);
             if ($now >= $idleDeadline) {
                 throw new TimeoutException(
                     sprintf('No data from the device for %.1f s (idleTimeout)', $now - $this->lastByteAt),
                     'idleTimeout',
                 );
             }
-            $this->readChunk(min(self::TICK, $idleDeadline - $now, ($responseDeadline ?? INF) - $now));
+            $this->readChunk(min(self::TICK, $idleDeadline - $now, ($deadline ?? INF) - $now));
         }
     }
 
