@@ -22,6 +22,15 @@ jobs:
       - name: tools/ci.sh in ${{ matrix.image }}
         run: docker run --rm -v "$PWD:/app" -w /app ${{ matrix.image }} bash tools/ci.sh
 
+  lowest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: tools/ci.sh --prefer-lowest in php:8.2.35-cli
+        run: docker run --rm -v "$PWD:/app" -w /app php:8.2.35-cli bash tools/ci.sh --prefer-lowest
+
   chr:
     runs-on: ubuntu-latest
     timeout-minutes: 20

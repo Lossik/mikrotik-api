@@ -3,6 +3,8 @@
 #
 #   bash tools/ci.sh              all steps
 #   bash tools/ci.sh --deps-only  steps 1-6 only (PHP check, tools, Composer, dependencies) - used by tools/chr/run-live.sh
+#   bash tools/ci.sh --prefer-lowest  installs the lowest allowed version of every dependency (checks the lower
+#                                     bounds in composer.json); combines with --deps-only
 #
 # Steps: (1) PHP version check (only patched releases), (2) git, unzip and a pinned, SHA256-verified Composer,
 # (4) composer validate --strict, (5) composer update (no lock file is committed), (6) composer check-platform-reqs,
@@ -11,9 +13,11 @@ set -euo pipefail
 
 COMPOSER_VERSION=2.10.2
 DEPS_ONLY=0
+UPDATE_FLAGS=""
 for arg in "$@"; do
 	case "$arg" in
 		--deps-only) DEPS_ONLY=1 ;;
+		--prefer-lowest) UPDATE_FLAGS="--prefer-lowest --prefer-stable" ;;
 		*) echo "ERROR: unknown argument: $arg" >&2; exit 2 ;;
 	esac
 done
@@ -81,7 +85,7 @@ step "(4) composer validate --strict"
 composer validate --strict
 
 step "(5) composer update"
-composer update --no-progress --prefer-dist
+composer update --no-progress --prefer-dist $UPDATE_FLAGS
 
 step "(6) composer check-platform-reqs"
 composer check-platform-reqs

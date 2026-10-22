@@ -16,7 +16,7 @@
 	"require": {
 		"php": "^8.2",
 		"ext-iconv": "*",
-		"lossik/device-communication": "~2.0"
+		"lossik/device-communication": "^2.0.1"
 	},
 	"require-dev": {
 		"phpunit/phpunit": "^11.5"

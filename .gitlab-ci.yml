@@ -11,6 +11,13 @@ unit:
   script:
     - bash tools/ci.sh
 
+# Lowest allowed version of every dependency: checks the lower bounds in composer.json (one PHP version is enough).
+lowest:
+  image: php:8.2.35-cli
+  timeout: 15m
+  script:
+    - bash tools/ci.sh --prefer-lowest
+
 chr:
   image: php:8.2.35-cli
   timeout: 20m
