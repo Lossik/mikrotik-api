@@ -9,12 +9,12 @@ namespace Lossik\Mikrotik\Api;
  *
  *     new ApiOptions(tls: TlsOptions::verified(cafile: '/etc/ssl/router-ca.pem'))
  *     new ApiOptions(tls: TlsOptions::fingerprint('5f3c…'))   // a self-signed router certificate, pinned
- *     new ApiOptions(tls: TlsOptions::anonymous())           // api-ssl without a certificate: no authentication
+ *     new ApiOptions(tls: TlsOptions::unverified())           // DANGEROUS: encrypted, router not authenticated
  */
 final readonly class TlsOptions
 {
-    /** The client cipher list for anonymous DH: ADH needs security level 0 in OpenSSL 1.1+ (2.x lacked it). */
-    private const ANONYMOUS_CIPHERS = 'ADH:ALL:@SECLEVEL=0';
+    /** The client cipher list of unverified(): ADH needs security level 0 in OpenSSL 1.1+ (2.x lacked it). */
+    private const UNVERIFIED_CIPHERS = 'ADH:ALL:@SECLEVEL=0';
 
     /**
      * @param array<string, mixed> $ssl
@@ -62,15 +62,19 @@ final readonly class TlsOptions
     }
 
     /**
-     * Anonymous Diffie-Hellman (ADH, TLS 1.2 only): what api-ssl offers when no certificate is set on the router.
-     * The connection is encrypted but the router is NOT authenticated - anyone in the path can impersonate it.
+     * DANGEROUS: verifies nothing. The connection is encrypted but the router is NOT authenticated - anyone in the
+     * path can impersonate it and read the credentials. Use verified() or fingerprint() unless nothing else works.
+     *
+     * Offers anonymous Diffie-Hellman (ADH, TLS 1.2 only), which api-ssl uses when no certificate is set on the
+     * router. It is not ADH-only: when the router has a certificate, the connection is made as well (ECDHE-RSA) and
+     * the certificate is not checked.
      */
-    public static function anonymous(): self
+    public static function unverified(): self
     {
         return new self([
             'verify_peer' => false,
             'verify_peer_name' => false,
-            'ciphers' => self::ANONYMOUS_CIPHERS,
+            'ciphers' => self::UNVERIFIED_CIPHERS,
         ], false);
     }
 

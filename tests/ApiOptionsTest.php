@@ -17,8 +17,8 @@ final class ApiOptionsTest extends TestCase
     public static function ports(): iterable
     {
         yield 'plain TCP' => [new ApiOptions(), 8728];
-        yield 'TLS' => [new ApiOptions(tls: TlsOptions::anonymous()), 8729];
-        yield 'TLS with a port set' => [new ApiOptions(port: 8728, tls: TlsOptions::anonymous()), 8728];
+        yield 'TLS' => [new ApiOptions(tls: TlsOptions::unverified()), 8729];
+        yield 'TLS with a port set' => [new ApiOptions(port: 8728, tls: TlsOptions::unverified()), 8728];
     }
 
     #[DataProvider('ports')]

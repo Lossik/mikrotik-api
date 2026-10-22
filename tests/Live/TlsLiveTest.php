@@ -13,7 +13,7 @@ use PHPUnit\Framework\Attributes\Medium;
 
 /**
  * The api-ssl service of a real RouterOS (plan L9, N8): a self-signed certificate verified by its fingerprint, a
- * foreign fingerprint, and anonymous Diffie-Hellman once the router has no certificate. The certificate `test` is set
+ * foreign fingerprint, and unverified() with and without a certificate on the router. The certificate `test` is set
  * on api-ssl by tools/chr/provision.php.
  */
 #[Group('live')]
@@ -38,10 +38,13 @@ final class TlsLiveTest extends LiveTestCase
     }
 
     /**
-     * N8, and whether the running RouterOS still offers ADH. Without a certificate it offers nothing else.
+     * N8, and whether the running RouterOS still offers ADH. unverified() verifies nothing: it connects with the
+     * certificate present (ECDHE-RSA) as well as without it, where ADH is all the router offers.
      */
-    public function testRouterWithoutACertificateIsReachedOnlyAnonymously(): void
+    public function testUnverifiedConnectsWithAndWithoutACertificate(): void
     {
+        self::assertNotNull($this->tlsClient(TlsOptions::unverified())->version());
+
         $raw = $this->raw();
         $service = $raw->rows('/ip/service/print', ['?name=api-ssl', '?dynamic=false', '.proplist=.id,certificate'])[0]
             ?? [];
@@ -52,7 +55,7 @@ final class TlsLiveTest extends LiveTestCase
         try {
             $raw->rows('/ip/service/set', ['=.id=' . $service['.id'], '=certificate=none']);
 
-            $version = $this->tlsClient(TlsOptions::anonymous())->version();
+            $version = $this->tlsClient(TlsOptions::unverified())->version();
             $this->assertHandshakeRefused(TlsOptions::verified());
         } finally {
             $raw->rows('/ip/service/set', ['=.id=' . ($service['.id'] ?? ''), '=certificate=' . $certificate]);

@@ -60,7 +60,7 @@ final class TlsTest extends TestCase
     {
         yield 'verified against the CA file holding the certificate' => ['verified with CA A', 'A'];
         yield 'pinned fingerprint of the certificate' => ['pin A', 'A'];
-        yield 'anonymous DH with anonymous()' => ['anonymous', 'anonymous'];
+        yield 'anonymous DH with unverified()' => ['anonymous', 'anonymous'];
     }
 
     #[DataProvider('acceptedHandshakes')]
@@ -81,7 +81,7 @@ final class TlsTest extends TestCase
     {
         yield 'verified against the system CA store, self-signed certificate' => ['verified', 'A'];
         yield 'fingerprint of another certificate' => ['pin A', 'B'];
-        yield 'anonymous DH without anonymous()' => ['verified', 'anonymous'];
+        yield 'anonymous DH without unverified()' => ['verified', 'anonymous'];
     }
 
     #[DataProvider('refusedHandshakes')]
@@ -178,7 +178,7 @@ final class TlsTest extends TestCase
             'verified' => TlsOptions::verified(),
             'verified with CA A' => TlsOptions::verified(cafile: self::$certificates['A']['certificate']),
             'pin A' => TlsOptions::fingerprint(self::$certificates['A']['sha256']),
-            'anonymous' => TlsOptions::anonymous(),
+            'anonymous' => TlsOptions::unverified(),
             default => throw new \InvalidArgumentException('Unknown client: ' . $client),
         };
     }
