@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/).
 
-## [2.1.0]
+## [2.1.0] - 2026-10-22
 
 Maintenance release of the 2.x line: it runs on patched PHP and is MIT licensed. The public API is unchanged and
 the protocol defects of 2.x are **not** fixed (see Known issues; they are fixed in 3.0).
