@@ -10,6 +10,9 @@ namespace Lossik\Mikrotik\Api\Tests\Support;
  *
  * Every reply sentence carries the `.tag` of the command it answers (as its last word); a command without `.tag`
  * is answered without one. Exceptions are the scenarios that break it on purpose (`wrong-tag`, `fatal`).
+ *
+ * TLS mode (start() with $tlsCertificate or $tlsAnonymous): the same scenarios after a TLS handshake. When the
+ * handshake fails, the router ends without receiving anything (received() returns []).
  */
 final class FakeRouter
 {
@@ -80,6 +83,9 @@ final class FakeRouter
      * @param bool $doneBeforeCancel listen only: the 3 `!re` and `!done` of S come in one write, so `!done` S
      *                               arrives before the client sends `/cancel` (then $cancelReply holds only
      *                               C sentences)
+     * @param string|null $tlsCertificate TLS with this certificate: a PEM file holding the certificate and its key
+     * @param bool $tlsAnonymous TLS 1.2 with anonymous DH only (`ADH:@SECLEVEL=0`, no certificate), like api-ssl
+     *                           of a router without a certificate
      */
     private function __construct(
         string $scenario,
@@ -87,6 +93,8 @@ final class FakeRouter
         bool $doneBeforeCancel,
         string $user,
         string $password,
+        ?string $tlsCertificate,
+        bool $tlsAnonymous,
     ) {
         if (!isset(self::SCENARIOS[$scenario])) {
             throw new \InvalidArgumentException('Unknown fake router scenario: ' . $scenario);
@@ -97,6 +105,7 @@ final class FakeRouter
             'password' => $password,
             'cancelReply' => $cancelReply,
             'doneBeforeCancel' => $doneBeforeCancel,
+            'tls' => $tlsAnonymous ? 'anonymous' : $tlsCertificate,
         ], JSON_THROW_ON_ERROR));
         $process = proc_open([PHP_BINARY, __DIR__ . '/fake-router.php', $script], [
             0 => ['pipe', 'r'],
@@ -129,8 +138,10 @@ final class FakeRouter
         bool $doneBeforeCancel = false,
         string $user = self::USER,
         string $password = self::PASSWORD,
+        ?string $tlsCertificate = null,
+        bool $tlsAnonymous = false,
     ): self {
-        return new self($scenario, $cancelReply, $doneBeforeCancel, $user, $password);
+        return new self($scenario, $cancelReply, $doneBeforeCancel, $user, $password, $tlsCertificate, $tlsAnonymous);
     }
 
     public function port(): int

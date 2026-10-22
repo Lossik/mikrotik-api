@@ -12,6 +12,8 @@ namespace Lossik\Mikrotik\Api\Tests\Support;
  * - Every reply sentence carries the `.tag` word of the sentence it answers (as its last word), unless the scenario
  *   breaks that on purpose (`wrong-tag`, `fatal`); a command without `.tag` is answered without one.
  * - The word encoding is written here independently of src/ (an oracle, not a copy of the code under test).
+ * - TLS mode: the accepted connection is switched to TLS before the scenario; a failed handshake prints
+ *   "TLS FAILED <reason>" and ends the script (nothing is received).
  *
  * See FakeRouter::SCENARIOS for what each scenario does.
  */
@@ -27,11 +29,31 @@ final class FakeRouterServer
     /** Word of 200 bytes: its length 0xC8 is encoded in two bytes, 0x80 0xC8. */
     private const LONG_WORD_BYTES = 191;
 
+    /**
+     * RFC 7919 ffdhe2048 (public parameters, not a key). PHP never enables automatic DH parameters for a server, so
+     * without them an ADH-only server has no usable cipher (F3d probe f3d-adh-php-server.log).
+     */
+    private const FFDHE2048 = <<<'PEM'
+        -----BEGIN DH PARAMETERS-----
+        MIIBCAKCAQEA//////////+t+FRYortKmq/cViAnPTzx2LnFg84tNpWp4TZBFGQz
+        +8yTnc4kmz75fS/jY2MMddj2gbICrsRhetPfHtXV/WVhJDP1H18GbtCFY2VVPe0a
+        87VXE15/V8k1mE8McODmi3fipona8+/och3xWKE2rec1MKzKT0g6eXq8CrGCsyT7
+        YdEIqUuyyOP7uWrat2DX9GgdT0Kj3jlN9K5W7edjcrsZCwenyO4KbXCeAvzhzffi
+        7MA0BM0oNC9hkXL+nOmFg/+OTxIy7vKBg8P+OxtMb61zO7X8vC7CIAXFjvGDfRaD
+        ssbzSibBsu/6iGtCOGEoXJf//////////wIBAg==
+        -----END DH PARAMETERS-----
+
+        PEM;
+
     /** @var resource|null */
     private $conn;
 
+    /** Anonymous mode: the temp file with the DH parameters (read during the handshake). */
+    private ?string $dhParamFile = null;
+
     /**
      * @param list<string> $cancelReply
+     * @param string|null $tls null = plain TCP, 'anonymous' = ADH only, otherwise a PEM file (certificate and key)
      */
     public function __construct(
         private readonly string $scenario,
@@ -39,6 +61,7 @@ final class FakeRouterServer
         private readonly string $password,
         private readonly array $cancelReply,
         private readonly bool $doneBeforeCancel,
+        private readonly ?string $tls,
     ) {
     }
 
@@ -52,6 +75,7 @@ final class FakeRouterServer
             || !is_string($script['password'] ?? null)
             || !is_array($script['cancelReply'] ?? null)
             || !is_bool($script['doneBeforeCancel'] ?? null)
+            || !(is_string($script['tls'] ?? null) || ($script['tls'] ?? null) === null)
         ) {
             throw new \InvalidArgumentException('usage: php fake-router.php <base64 json script>');
         }
@@ -66,12 +90,21 @@ final class FakeRouterServer
             $script['password'],
             $cancelReply,
             $script['doneBeforeCancel'],
+            $script['tls'] ?? null,
         );
     }
 
     public function run(): int
     {
-        $server = stream_socket_server('tcp://127.0.0.1:0', $errno, $errstr);
+        // the server listens on tcp:// and switches the accepted connection to TLS itself, so that a failed handshake
+        // ends the script normally instead of failing inside stream_socket_accept()
+        $server = stream_socket_server(
+            'tcp://127.0.0.1:0',
+            $errno,
+            $errstr,
+            STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
+            stream_context_create(['ssl' => $this->tlsContext()]),
+        );
         if ($server === false) {
             fwrite(STDERR, "listen failed: $errstr\n");
 
@@ -87,6 +120,22 @@ final class FakeRouterServer
             return 1;
         }
         stream_set_timeout($conn, self::READ_TIMEOUT);
+        if ($this->tls !== null) {
+            $method = $this->tls === 'anonymous'
+                ? STREAM_CRYPTO_METHOD_TLSv1_2_SERVER
+                : STREAM_CRYPTO_METHOD_ANY_SERVER;
+            $handshake = @stream_socket_enable_crypto($conn, true, $method);
+            if ($this->dhParamFile !== null) {
+                unlink($this->dhParamFile);
+            }
+            if ($handshake !== true) {
+                $this->out('TLS FAILED ' . (error_get_last()['message'] ?? ''));
+                fclose($conn);
+                $this->out('END');
+
+                return 0;
+            }
+        }
         $this->conn = $conn;
 
         try {
@@ -100,6 +149,23 @@ final class FakeRouterServer
         $this->out('END');
 
         return 0;
+    }
+
+    /**
+     * @return array<string, mixed> the `ssl` context options of the server
+     */
+    private function tlsContext(): array
+    {
+        if ($this->tls === null) {
+            return [];
+        }
+        if ($this->tls !== 'anonymous') {
+            return ['local_cert' => $this->tls];
+        }
+        $this->dhParamFile = (string) tempnam(sys_get_temp_dir(), 'fake-router-dh');
+        file_put_contents($this->dhParamFile, self::FFDHE2048);
+
+        return ['ciphers' => 'ADH:@SECLEVEL=0', 'security_level' => 0, 'dh_param' => $this->dhParamFile];
     }
 
     private function serve(): void

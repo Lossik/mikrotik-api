@@ -20,7 +20,7 @@ use Lossik\Mikrotik\Api\Protocol\SentenceReader;
 use Lossik\Mikrotik\Api\Protocol\WordCodec;
 
 /**
- * The RouterOS API (binary protocol over TCP) as a Transport.
+ * The RouterOS API (binary protocol over TCP, or over TLS with ApiOptions::$tls) as a Transport.
  *
  *     $transport = ApiTransport::connect('10.0.0.1', 'admin', 'secret', new ApiOptions(idleTimeout: 120));
  *
@@ -55,7 +55,8 @@ final class ApiTransport implements Transport
      *
      * @throws TimeoutException the connection was not opened within connectTimeout ('connectTimeout'), or the login
      *                          response ran out of idleTimeout / responseTimeout
-     * @throws ConnectionException the device is unreachable or closed the connection
+     * @throws ConnectionException the device is unreachable or closed the connection, or the TLS handshake failed
+     *                             (the certificate or its fingerprint did not verify, no common cipher)
      * @throws AuthenticationException wrong user name or password, or the device wants the legacy MD5 login of
      *                                 RouterOS before 6.43 (not supported; no MD5 response is ever sent)
      * @throws CommunicationException
@@ -66,15 +67,40 @@ final class ApiTransport implements Transport
         string $password,
         ApiOptions $options = new ApiOptions(),
     ): self {
+        $tls = $options->tls;
         $address = sprintf(
-            'tcp://%s:%d',
+            '%s://%s:%d',
+            $tls === null ? 'tcp' : 'ssl',
             str_contains($host, ':') && !str_starts_with($host, '[') ? '[' . $host . ']' : $host,
-            $options->port,
+            $options->effectivePort(),
         );
+        $context = stream_context_create($tls === null ? [] : ['ssl' => $tls->contextOptions($host)]);
         $started = SentenceReader::now();
-        $stream = @stream_socket_client($address, $errno, $errstr, $options->connectTimeout);
+        // a failed TLS handshake leaves errno 0 and no errstr; its reason is only in the warnings
+        $warnings = [];
+        set_error_handler(static function (int $level, string $warning) use (&$warnings): bool {
+            $warnings[] = $warning;
+
+            return true;
+        }, E_WARNING);
+        try {
+            $stream = stream_socket_client(
+                $address,
+                $errno,
+                $errstr,
+                $options->connectTimeout,
+                STREAM_CLIENT_CONNECT,
+                $context,
+            );
+        } finally {
+            restore_error_handler();
+        }
         if ($stream === false) {
-            $message = sprintf('Cannot connect to %s: %s (%d)', $address, $errstr, $errno);
+            $message = sprintf(
+                'Cannot connect to %s: %s',
+                $address,
+                implode('; ', array_filter([$errstr !== '' ? sprintf('%s (%d)', $errstr, $errno) : '', ...$warnings])),
+            );
             if (SentenceReader::now() - $started >= $options->connectTimeout) {
                 throw new TimeoutException($message, 'connectTimeout');
             }
