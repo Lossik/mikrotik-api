@@ -9,7 +9,7 @@ namespace Lossik\Mikrotik\Api\Tests\Support;
  * what the client sent to it.
  *
  * Every reply sentence carries the `.tag` of the command it answers (as its last word); a command without `.tag`
- * is answered without one. Exceptions are the scenarios that break it on purpose (`wrong-tag`, `fatal`).
+ * is answered without one. Exceptions are the scenarios that break it on purpose (`wrong-tag`, `no-tag`, `fatal`).
  *
  * TLS mode (start() with $tlsCertificate or $tlsAnonymous): the same scenarios after a TLS handshake. When the
  * handshake fails, the router ends without receiving anything (received() returns []).
@@ -71,6 +71,8 @@ final class FakeRouter
             . 'anything else gets `!trap =message=invalid user name or password (6)`, `!done`',
         'big' => '3000 `!re =.id=*<hex n> =name=item<n>` (n = 0..2999, last `.id` = `*bb7`), `!done`',
         'wrong-tag' => 'the reply of `ok` with `.tag=999`',
+        'no-tag' => 'the reply of `ok` without any `.tag`',
+        'undefined-byte' => '`!re =comment=a<0x81>b`, `!done`: 0x81 is not defined in windows-1250',
         'reserved-length' => 'only the control byte 0xF8, then closes',
         'listen' => '3 `!re =.id=*n =name=event<n>` with the listen tag S, 0.3 s apart; then waits for `/cancel` '
             . '(own tag C, `=tag=S`) and answers it with $cancelReply (see start())',

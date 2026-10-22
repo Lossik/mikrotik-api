@@ -197,6 +197,7 @@ final class StreamTest extends TestCase
         yield 'connection closed' => ['eof', ConnectionException::class, null];
         yield '!fatal' => ['fatal', FatalException::class, null];
         yield 'reply with a foreign tag' => ['wrong-tag', ProtocolException::class, null];
+        yield 'reply without .tag' => ['no-tag', ProtocolException::class, null];
     }
 
     /**

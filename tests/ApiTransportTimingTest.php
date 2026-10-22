@@ -153,6 +153,46 @@ final class ApiTransportTimingTest extends TestCase
     }
 
     /**
+     * T16b (FAQ-4a): a listening socket whose accept queue is full and that nobody accepts from; the kernel drops
+     * further connection attempts without an answer, so the TCP connect hangs (Linux and Windows alike).
+     */
+    public function testConnectTimeoutIsATimeoutExceptionOfConnectTimeout(): void
+    {
+        $server = stream_socket_server(
+            'tcp://127.0.0.1:0',
+            $errno,
+            $errstr,
+            STREAM_SERVER_BIND | STREAM_SERVER_LISTEN,
+            stream_context_create(['socket' => ['backlog' => 1]]),
+        );
+        self::assertNotFalse($server);
+        $name = (string) stream_socket_get_name($server, false);
+        $port = (int) substr($name, (int) strrpos($name, ':') + 1);
+        $queued = [];
+        do {
+            // the queue holds one or two connections, depending on the system
+            $client = @stream_socket_client('tcp://127.0.0.1:' . $port, $errno, $errstr, 0.2);
+            if ($client !== false) {
+                $queued[] = $client;
+            }
+        } while ($client !== false && count($queued) < 10);
+        self::assertFalse($client, 'the accept queue did not fill up');
+
+        try {
+            ApiTransport::connect(
+                '127.0.0.1',
+                FakeRouter::USER,
+                FakeRouter::PASSWORD,
+                new ApiOptions(port: $port, connectTimeout: 0.5),
+            );
+            self::fail('TimeoutException expected');
+        } catch (ConnectionException $e) {
+            self::assertInstanceOf(TimeoutException::class, $e);
+            self::assertSame('connectTimeout', $e->limit);
+        }
+    }
+
+    /**
      * The second call fails at once and the router received nothing more than the login and the first command.
      */
     private static function assertSecondCallFailsWithoutIo(ApiTransport $transport, FakeRouter $router): void

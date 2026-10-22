@@ -275,10 +275,24 @@ final class ApiTransportTest extends TestCase
         self::assertSame('*bb7', $rows[2999]['.id']);
     }
 
-    /** T19 */
-    public function testReplyWithForeignTagIsAProtocolErrorAndClosesTheTransport(): void
+    /**
+     * T19 (FAQ-3): a reply without `.tag` belongs to no command, like one with another tag.
+     *
+     * @return iterable<string, array{key-of<FakeRouter::SCENARIOS>}>
+     */
+    public static function foreignReplies(): iterable
     {
-        $router = FakeRouter::start('wrong-tag');
+        yield 'reply with another tag' => ['wrong-tag'];
+        yield 'reply without .tag' => ['no-tag'];
+    }
+
+    /**
+     * @param key-of<FakeRouter::SCENARIOS> $scenario
+     */
+    #[DataProvider('foreignReplies')]
+    public function testReplyWithForeignTagIsAProtocolErrorAndClosesTheTransport(string $scenario): void
+    {
+        $router = FakeRouter::start($scenario);
         $transport = self::connect($router);
 
         try {
@@ -356,6 +370,53 @@ final class ApiTransportTest extends TestCase
 
         self::assertSame('=comment=' . $bytesOnTheWire, $router->received()[1][1]);
         self::assertSame([['comment' => $value]], $rows);
+    }
+
+    /**
+     * T22b (FAQ-2): words windows-1250 cannot hold. iconv works on the whole word, so one such character spoils the
+     * word, and nothing is approximated (`Ĩ` would become `I` with //TRANSLIT, which 2.x used).
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function unconvertibleValues(): iterable
+    {
+        yield 'Cyrillic letter' => ['Ж'];
+        yield 'one such character among convertible ones' => ['Žluťoučký Ж kůň'];
+        yield 'character that //TRANSLIT would approximate' => ['Ĩ'];
+    }
+
+    #[DataProvider('unconvertibleValues')]
+    public function testWordUnconvertibleToTheCharsetIsRejectedBeforeAnyIoAndTheTransportStaysOpen(string $value): void
+    {
+        $router = FakeRouter::start('echo');
+        $transport = self::connect($router, new ApiOptions(charset: 'windows-1250'));
+
+        try {
+            $transport->execute(new Command('/ip/address', 'add', ['comment' => $value]));
+            self::fail('InvalidArgumentException expected');
+        } catch (\InvalidArgumentException) {
+        }
+        self::assertTrue($transport->isOpen());
+
+        $transport->execute(new Command('/ip/address', 'print'));
+        $transport->close();
+        $received = $router->received();
+        self::assertCount(2, $received, 'the login and the next command; nothing of the rejected one');
+        self::assertSame(['/ip/address/print'], self::withoutTag($received[1]));
+    }
+
+    /** T22b (FAQ-2) */
+    public function testReplyWordUndefinedInTheCharsetIsAProtocolErrorAndClosesTheTransport(): void
+    {
+        $router = FakeRouter::start('undefined-byte');
+        $transport = self::connect($router, new ApiOptions(charset: 'windows-1250'));
+
+        try {
+            $transport->execute(new Command('/ip/address', 'print'));
+            self::fail('ProtocolException expected');
+        } catch (ProtocolException) {
+        }
+        self::assertFalse($transport->isOpen());
     }
 
     /** T24 */

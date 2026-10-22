@@ -10,7 +10,7 @@ namespace Lossik\Mikrotik\Api\Tests\Support;
  * - Listens on 127.0.0.1 with port 0 and prints "PORT <n>" (parallel runs never collide), accepts one client.
  * - Every received sentence is printed as "RECV <json list of base64 words>" (binary safe), the end as "END".
  * - Every reply sentence carries the `.tag` word of the sentence it answers (as its last word), unless the scenario
- *   breaks that on purpose (`wrong-tag`, `fatal`); a command without `.tag` is answered without one.
+ *   breaks that on purpose (`wrong-tag`, `no-tag`, `fatal`); a command without `.tag` is answered without one.
  * - The word encoding is written here independently of src/ (an oracle, not a copy of the code under test).
  * - TLS mode: the accepted connection is switched to TLS before the scenario; a failed handshake prints
  *   "TLS FAILED <reason>" and ends the script (nothing is received).
@@ -341,6 +341,12 @@ final class FakeRouterServer
                 break;
             case 'wrong-tag':
                 $this->send($this->sentences(self::okRows(), '999'));
+                break;
+            case 'no-tag':
+                $this->send($this->sentences(self::okRows(), null));
+                break;
+            case 'undefined-byte':
+                $this->send($this->sentences([['!re', "=comment=a\x81b"], ['!done']], $tag));
                 break;
             case 'reserved-length':
                 $this->send("\xF8");
