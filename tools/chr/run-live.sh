@@ -1,8 +1,9 @@
 #!/bin/bash
 # Full live run against a MikroTik CHR booted in this container:
-# PHP version check -> install QEMU -> start CHR -> wait for /login -> provision -> tests -> stop (always).
+# PHP version check -> dependencies (tools/ci.sh --deps-only) -> install QEMU -> start CHR -> wait for /login
+# -> provision -> wait for the SSH banner -> smoke -> phpunit --group live -> stop (always).
 #
-#   bash tools/chr/run-live.sh
+#   bash tools/chr/run-live.sh   (from the repository root)
 #
 # Environment: CHR_VERSION, CHR_CACHE, CHR_BOOT_TIMEOUT (see chr.sh); CHR_PASSWORD (admin password to set,
 # default: random per run).
@@ -59,7 +60,9 @@ if (version_compare(PHP_VERSION, $minima[$branch], "<")) {
 echo "PHP " . PHP_VERSION . " OK\n";
 '
 
-# From F1b/F2 on: bash tools/ci.sh --deps-only (git, Composer, dependencies) goes here.
+step "dependencies (tools/ci.sh --deps-only)"
+bash "$DIR/../ci.sh" --deps-only
+step_done "dependencies"
 
 export CHR_VERSION="${CHR_VERSION:-7.24.5}"
 if [ -z "${CHR_PASSWORD:-}" ]; then
@@ -92,7 +95,17 @@ step "provision"
 php "$DIR/provision.php"
 step_done "provisioning"
 
-# From F5 on: vendor/bin/phpunit --group live replaces the smoke test below.
+# After provisioning: provision.php may (re)enable the ssh service, and a fresh CHR sends no SSH banner for a while
+# after the API is up.
+step "wait for SSH banner"
+bash "$DIR/chr.sh" wait-ssh
+step_done "SSH wait"
+
 step "smoke"
 php "$DIR/smoke.php"
 step_done "smoke"
+
+# The live suite gets a hard limit: a silent router can hang a client forever.
+step "phpunit --group live"
+timeout 300 vendor/bin/phpunit --group live
+step_done "live tests"

@@ -1,4 +1,17 @@
-chr-smoke:
+unit:
+  image: $PHP_IMAGE
+  timeout: 15m
+  parallel:
+    matrix:
+      - PHP_IMAGE:
+          - php:8.2.35-cli
+          - php:8.3.36-cli
+          - php:8.4.27-cli
+          - php:8.5.12-cli
+  script:
+    - bash tools/ci.sh
+
+chr:
   image: php:8.2.35-cli
   timeout: 20m
   variables:

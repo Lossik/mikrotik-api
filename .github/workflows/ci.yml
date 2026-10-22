@@ -5,6 +5,23 @@ on:
   pull_request:
 
 jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - php:8.2.35-cli
+          - php:8.3.36-cli
+          - php:8.4.27-cli
+          - php:8.5.12-cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: tools/ci.sh in ${{ matrix.image }}
+        run: docker run --rm -v "$PWD:/app" -w /app ${{ matrix.image }} bash tools/ci.sh
+
   chr:
     runs-on: ubuntu-latest
     timeout-minutes: 20

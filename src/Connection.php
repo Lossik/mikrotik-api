@@ -18,7 +18,7 @@ class Connection extends \Lossik\Device\Communication\Connection
 	/**
 	 * @param Options|null $options
 	 */
-	public function __construct(Options $options = null)
+	public function __construct(?Options $options = null)
 	{
 		parent::__construct($options ?: new Options(), new Definition());
 	}
