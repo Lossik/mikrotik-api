@@ -33,10 +33,9 @@ use Lossik\Mikrotik\Api\Protocol\WordCodec;
  */
 final class ApiTransport implements StreamingTransport
 {
-    public const ERRNO_ETIMEDOUT_LINUX = 110;
-    public const ERRNO_ETIMEDOUT_DARWIN = 60;
-    public const ERRNO_ETIMEDOUT_MACOS = self::ERRNO_ETIMEDOUT_DARWIN;
-    public const ERRNO_ETIMEDOUT_WINDOWS = 10060;
+    private const ERRNO_ETIMEDOUT_LINUX = 110;
+    private const ERRNO_ETIMEDOUT_DARWIN = 60;
+    private const ERRNO_ETIMEDOUT_WINDOWS = 10060;
 
     /** @var resource|null */
     private $stream;
