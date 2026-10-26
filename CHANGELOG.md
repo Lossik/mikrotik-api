@@ -93,7 +93,8 @@ The known issues of 2.x:
 - Known limits: one command at a time per connection; no TCP keepalive (it would need `ext-sockets`), so a router
   that died without closing the connection is noticed only through an `idleTimeout`; without `responseTimeout` a
   peer that sends one byte at a time is never cut off; `less()`/`greater()` with an IPv4 address compare as text on
-  RouterOS 6.42.12 … 7.25rc3 (the console, and so `lossik/mikrotik-ssh`, as addresses). See the README.
+  RouterOS 6.42.12 … 7.25rc3 (the console, and so `lossik/mikrotik-ssh`, as addresses); `has()` is the existence of
+  a property, also with an empty value (`lossik/mikrotik-ssh`: a non-empty value). See the README.
 - When the router reboots under a running `listen`, the call ends normally, with `ConnectionException` or, rarely,
   with `TimeoutException`; it does not hang, and the next call on the transport throws `ConnectionException`.
 

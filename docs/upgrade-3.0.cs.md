@@ -17,7 +17,7 @@ v jejich `README.md`.
   `phpseclib/phpseclib`: **projekt, který má `phpseclib/phpseclib ^2` i jinde, nenainstaluje `mikrotik-ssh` 3.0,
   dokud ten kód nepřevede na phpseclib 3.**
 - **Rozšíření**: `mikrotik-api` vyžaduje `ext-openssl` (ve 2.x jen doporučené) a `ext-iconv`; `mikrotik-ssh`
-  potřebuje `ext-iconv`, jen když nastavíte jiný `charset` než UTF-8.
+  vyžaduje `ext-iconv` (deklarované v `composer.json`; používá ho jen při jiném `charset` než UTF-8).
 - **RouterOS** (podrobná tabulka „testováno při každém běhu CI / týdně / jen ručně / neověřeno“ je v README obou
   balíků):
   - **API**: podporovaná je celá řada 7.x a 6.x od 6.34 (první obraz CHR); živá sada je testuje na hraničních
@@ -142,7 +142,9 @@ Navíc u SSH:
   (konzole by porovnala jinak než API). Celé číslo se porovná stejně jako přes API; **IPv4 adresu porovná konzole
   jako adresu, API na RouterOS 6.42.12 … 7.25rc3 jako text** (`less('address', '10.97.3.10')` přes API najde
   `10.97.3.1`, ale ne `10.97.3.9`), takže SSH a API vrátí jiné řádky, kde se textové a adresní pořadí liší.
-  `where(k, 'true'/'false')` a `has(k)` vrací stejné řádky jako API.
+  `where(k, 'true'/'false')` vrací stejné řádky jako API. **`has(k)` přes SSH znamená neprázdnou hodnotu**
+  a `hasNot(k)` chybějící nebo prázdnou; přes API je `has(k)` existence vlastnosti, i s prázdnou hodnotou: prázdnou
+  `address` u `/ip/service` najde API v `has('address')`, SSH v `hasNot('address')`.
 - **`responseTimeout` je 60 s** na jeden příkaz. Pod RouterOS 7.17 je čtení pomalejší (6–14 ms na řádek
   na emulovaném CHR): u velkých tabulek ho zvyšte.
 - **Streamování** (`listen`) přes SSH není; je v `mikrotik-api`.

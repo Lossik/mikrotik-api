@@ -22,26 +22,27 @@ final class RawApi
     }
 
     /**
+     * @param float $timeout seconds for the TCP connect and for each login sentence
      * @throws \RuntimeException the connection or the login failed
      */
-    public static function connect(Env $env): self
+    public static function connect(Env $env, float $timeout = 10.0): self
     {
         $socket = @stream_socket_client(
             sprintf('tcp://%s:%d', $env->host, $env->apiPort),
             $errno,
             $errstr,
-            10.0,
+            $timeout,
         );
         if ($socket === false) {
             throw new \RuntimeException(sprintf('Raw connection to the router failed: %s (%d)', $errstr, $errno));
         }
         $api = new self($socket);
-        $reply = $api->call('/login', ['=name=' . $env->user, '=password=' . $env->password]);
+        $reply = $api->call('/login', ['=name=' . $env->user, '=password=' . $env->password], $timeout);
         // RouterOS before 6.43 answers the plain login with `!done =ret=<challenge>` and no session: MD5 response
         $challenge = self::attributes($reply[0] ?? [])['ret'] ?? null;
         if ($challenge !== null && self::type($reply[0] ?? []) === '!done') {
             $response = '00' . md5("\0" . $env->password . (string) hex2bin($challenge));
-            $reply = $api->call('/login', ['=name=' . $env->user, '=response=' . $response]);
+            $reply = $api->call('/login', ['=name=' . $env->user, '=response=' . $response], $timeout);
         }
         if (self::type($reply[0] ?? []) !== '!done') {
             throw new \RuntimeException('Raw login failed: ' . json_encode($reply));

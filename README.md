@@ -349,11 +349,15 @@ try {
   earlier items stay changed. Measured by the live suite of mikrotik-ssh, which compares with the API, on every
   version of the matrix; the console behaves the same.
 - **`Query::where('key', '')` matches nothing** (an empty reply: 7.23.8 and newer send `!empty`, 7.17.2 and the
-  older measured versions `!done` alone), it does not mean "any value". A property with an empty value (an empty `comment`) is not
-  returned by `print` at all: the key is missing from the row.
+  older measured versions `!done` alone), it does not mean "any value". An empty `comment` is not returned by
+  `print` at all: the key is missing from the row. Other empty values come as `''` where measured (the empty
+  `address` of `/ip/service` on 6.49.18), so test for a value with
+  `($row['key'] ?? '') !== ''`, not with `isset()`.
 - **`Query::has('key')` is the existence of the property**, also for a flag: `has('disabled')` (`?disabled`) matches
   every item that has the property, not the disabled ones (measured on 6.34, 6.49.23, 7.1, 7.17.2 and 7.24.5); for the
-  disabled ones use `where('disabled', 'true')`.
+  disabled ones use `where('disabled', 'true')`. It is existence also with an empty value: `has('address')` on
+  `/ip/service` matches the services whose address is empty (measured on 6.49.18 and 7.24.5). `lossik/mikrotik-ssh`
+  differs here: over the console `has()` means a non-empty value and `hasNot()` a missing or empty one.
 - **`less()` and `greater()` are sent as they are** (`?<k=v`, `?>k=v`) for any value; the live suite of this
   package does not test them. Measured through the live suite of mikrotik-ssh, which runs the same query over the
   API:

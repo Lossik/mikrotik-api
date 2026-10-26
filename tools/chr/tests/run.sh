@@ -37,12 +37,24 @@ assert_row_rejected() {
 
 test_oh1() {
 	echo "--- OH1: versions.txt validation ---"
-	local tmp_file
+	local tmp_file out how
 
 	if (CHR_VERSION="unknown-version" bash "$CHR_DIR/run-live.sh") >/dev/null 2>&1; then
 		echo "OH1 FAIL: unknown version should fail" >&2
 		return 1
 	fi
+	# no default version: main() stops before anything runs (the message tells it from the later row validation)
+	for how in empty unset; do
+		if out=$(if [ "$how" = empty ]; then export CHR_VERSION=""; else unset CHR_VERSION; fi
+			bash "$CHR_DIR/run-live.sh" 2>&1); then
+			echo "OH1 FAIL: an $how CHR_VERSION should fail" >&2
+			return 1
+		fi
+		if [[ "$out" != *"CHR_VERSION is not set"* ]]; then
+			echo "OH1 FAIL: an $how CHR_VERSION should be refused by main(), got: $out" >&2
+			return 1
+		fi
+	done
 	assert_row_rejected "row with 5 columns (no sha-source)" bad1 "bad1 stable $SHA json image"
 	assert_row_rejected "unknown ssh-path" bad2 "bad2 stable $SHA foo image official"
 	assert_row_rejected "unknown install" bad3 "bad3 stable $SHA json foo official"
@@ -127,7 +139,7 @@ provision | php "$DIR/provision.php"
 wait for SSH banner | bash "$DIR/chr.sh" wait-ssh
 smoke (on failure: provision once, smoke once more) | php "$DIR/smoke.php" || { echo "=== smoke failed: running provision.php once more"; php "$DIR/provision.php" && php "$DIR/smoke.php"; }
 smoke ssh-login | php "$DIR/smoke.php" --ssh-login
-live tests | timeout 300 vendor/bin/phpunit --group live --exclude-group live-text "$@"
+live tests | timeout 300 vendor/bin/phpunit --group live --exclude-group live-text --fail-on-empty-test-suite "$@"
 EOF
 )
 
@@ -147,7 +159,7 @@ provision | php "$DIR/provision.php"
 wait for SSH banner | bash "$DIR/chr.sh" wait-ssh
 smoke (on failure: provision once, smoke once more) | php "$DIR/smoke.php" || { echo "=== smoke failed: running provision.php once more"; php "$DIR/provision.php" && php "$DIR/smoke.php"; }
 smoke ssh-login | php "$DIR/smoke.php" --ssh-login
-live tests | timeout 600 vendor/bin/phpunit --group live --exclude-group live-json "$@"
+live tests | timeout 600 vendor/bin/phpunit --group live --exclude-group live-json --fail-on-empty-test-suite "$@"
 EOF
 )
 
@@ -171,7 +183,7 @@ provision (upgraded 6.49.23) | php "$DIR/provision.php"
 wait for SSH banner | bash "$DIR/chr.sh" wait-ssh
 smoke (on failure: provision once, smoke once more) | php "$DIR/smoke.php" || { echo "=== smoke failed: running provision.php once more"; php "$DIR/provision.php" && php "$DIR/smoke.php"; }
 smoke ssh-login | php "$DIR/smoke.php" --ssh-login
-live tests | timeout 600 vendor/bin/phpunit --group live --exclude-group live-json "$@"
+live tests | timeout 600 vendor/bin/phpunit --group live --exclude-group live-json --fail-on-empty-test-suite "$@"
 EOF
 )
 
@@ -203,7 +215,7 @@ php $DIR/smoke.php
 step: smoke ssh-login
 php $DIR/smoke.php --ssh-login
 step: live tests
-timeout 600 vendor/bin/phpunit --group live --exclude-group live-json --filter Foo
+timeout 600 vendor/bin/phpunit --group live --exclude-group live-json --fail-on-empty-test-suite --filter Foo
 env: MIKROTIK_LIVE_SSH_PATH=text CHR_LIVE_TIMEOUT=600 MIKROTIK_LIVE_HOST=127.0.0.1 MIKROTIK_LIVE_PORT_API=18728 MIKROTIK_LIVE_PORT_TLS=18729 MIKROTIK_LIVE_PORT_SSH=18722 MIKROTIK_LIVE_USER=admin MIKROTIK_LIVE_PASS=pw
 EOF
 )

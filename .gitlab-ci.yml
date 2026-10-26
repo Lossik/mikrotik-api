@@ -67,6 +67,32 @@ chr:schedule:
   after_script:
     - bash tools/chr/chr.sh stop
 
+# The live suite on the newest supported PHP, weekly (plan gate Q-S): the TLS, timeout and SSH code paths against a
+# real router differ between PHP versions; RouterOS stable and long-term.
+chr:schedule:php8.5:
+  image: php:8.5.12-cli
+  timeout: 20m
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  variables:
+    CHR_CACHE: $CI_PROJECT_DIR/.cache/chr
+    DC_REF: feature/3.0
+    DC_URL: http://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab:8929/lossik/device-communication.git
+  cache:
+    key: chr-$CHR_VERSION
+    paths:
+      - .cache/chr
+  parallel:
+    matrix:
+      - CHR_VERSION:
+          - "7.24.5"
+          - "7.23.8"
+  script:
+    - bash tools/chr/tests/run.sh
+    - bash tools/chr/run-live.sh
+  after_script:
+    - bash tools/chr/chr.sh stop
+
 chr:schedule:6.34:
   image: php:8.2.35-cli
   timeout: 20m

@@ -8,7 +8,8 @@
 #   bash tools/chr/chr.sh stop      stop QEMU (no-op when not running)
 #   bash tools/chr/chr.sh status    print "running" or "not running"
 #
-# Environment: CHR_VERSION (default 7.24.5), CHR_CACHE (default $HOME/.cache/lossik-chr),
+# Environment: CHR_VERSION (default 7.24.5 for a manual chr.sh; run-live.sh requires it),
+# CHR_CACHE (default $HOME/.cache/lossik-chr),
 # CHR_BOOT_TIMEOUT (seconds, default 300: 'wait' counts from 'start', 'wait-ssh' waits that long on one connection),
 # CHR_RUN_DIR (default /tmp/lossik-chr),
 # CHR_PUBLISH=1 (debug only: forward ports on 0.0.0.0 instead of 127.0.0.1).

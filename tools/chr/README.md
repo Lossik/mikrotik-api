@@ -20,7 +20,7 @@ error, never a skip. Every run boots a fresh copy of the image in `/tmp`, so eac
 
 | file | purpose |
 |---|---|
-| `run-live.sh` | the whole lifecycle. It first validates the row of `CHR_VERSION`, builds the plan of the run and **prints it**, then executes exactly that plan: PHP version check, `tools/ci.sh --deps-only`, `chr.sh install`, `start`, `wait`, `provision.php` (for an upgrade row: base image, `provision.php`, `upgrade.php`, `provision.php` again), `chr.sh wait-ssh`, `smoke.php` (on failure one more `provision.php` and `smoke.php`, then the run fails), `smoke.php --ssh-login`, `timeout $CHR_LIVE_TIMEOUT vendor/bin/phpunit --group live --exclude-group live-<other path>`, `chr.sh stop` (also on failure); prints the duration of every step. Extra arguments are passed to PHPUnit. Run it from the repository root |
+| `run-live.sh` | the whole lifecycle. It first validates the row of `CHR_VERSION`, builds the plan of the run and **prints it**, then executes exactly that plan: PHP version check, `tools/ci.sh --deps-only`, `chr.sh install`, `start`, `wait`, `provision.php` (for an upgrade row: base image, `provision.php`, `upgrade.php`, `provision.php` again), `chr.sh wait-ssh`, `smoke.php` (on failure one more `provision.php` and `smoke.php`, then the run fails), `smoke.php --ssh-login`, `timeout $CHR_LIVE_TIMEOUT vendor/bin/phpunit --group live --exclude-group live-<other path> --fail-on-empty-test-suite` (a selection without a test is a failure, not a green run), `chr.sh stop` (also on failure); prints the duration of every step. Extra arguments are passed to PHPUnit. Run it from the repository root |
 | `chr.sh` | `install` (apt: `qemu-system-x86`, `unzip`), `start` (refuses `upgrade:` rows — they are booted by `run-live.sh`), `wait` (API `/login`), `wait-ssh` (one patient connection until an `SSH-` banner line; a fresh CHR sends none for a while after the API is up, and every broken connection costs the router seconds), `stop`, `status` |
 | `provision.php` | idempotent setup: admin password, read-only user `nopass` with empty password, services `api`/`api-ssl`/`ssh`, self-signed certificate `test` for `api-ssl` (assigning it is retried for up to 15 s); when the router has the package `ipv6` installed and disabled (every CHR 6.x image), enables it, reboots and waits until admin logs in and the package reports enabled (`CHR_REBOOT_TIMEOUT`) — the condition is the package state, not the version; with `--defer-reboot` (base image of an `upgrade:` row) it only schedules the enable, and the upgrade reboot applies it |
 | `upgrade.php` | upgrade of a booted router with `routeros-x86-<version>.npk` (SFTP upload, reboot, wait); fails unless `/system/resource` reports the target version and every enabled package has exactly that version. SFTP via phpseclib when the repository has it, otherwise via `curl` (libssh2) with the credentials in a temporary config file |
@@ -59,23 +59,23 @@ Docker is the only requirement. From the repository root:
 PowerShell:
 
 ```powershell
-docker run --rm -v "${PWD}:/app" -v "$HOME/.cache/lossik-chr:/cache" -e CHR_CACHE=/cache -w /app php:8.2.35-cli bash tools/chr/run-live.sh
+docker run --rm -v "${PWD}:/app" -v "$HOME/.cache/lossik-chr:/cache" -e CHR_CACHE=/cache -e CHR_VERSION=7.24.5 -w /app php:8.2.35-cli bash tools/chr/run-live.sh
 ```
 
 Git Bash on Windows (`MSYS_NO_PATHCONV=1` stops MSYS from rewriting the `-v`/`-w` paths; `pwd -W` gives a Windows path):
 
 ```bash
 mkdir -p ~/.cache/lossik-chr
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/app" -v "$(cd ~/.cache/lossik-chr && pwd -W):/cache" -e CHR_CACHE=/cache -w /app php:8.2.35-cli bash tools/chr/run-live.sh
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/app" -v "$(cd ~/.cache/lossik-chr && pwd -W):/cache" -e CHR_CACHE=/cache -e CHR_VERSION=7.24.5 -w /app php:8.2.35-cli bash tools/chr/run-live.sh
 ```
 
 Linux / macOS:
 
 ```bash
-docker run --rm -v "$PWD:/app" -v "$HOME/.cache/lossik-chr:/cache" -e CHR_CACHE=/cache -w /app php:8.2.35-cli bash tools/chr/run-live.sh
+docker run --rm -v "$PWD:/app" -v "$HOME/.cache/lossik-chr:/cache" -e CHR_CACHE=/cache -e CHR_VERSION=7.24.5 -w /app php:8.2.35-cli bash tools/chr/run-live.sh
 ```
 
-Another version: add `-e CHR_VERSION=6.49.18`. The checks of the harness alone: `bash tools/chr/tests/run.sh` (no QEMU).
+Another version: `-e CHR_VERSION=6.49.18`; `CHR_VERSION` is required, `run-live.sh` fails without it. The checks of the harness alone: `bash tools/chr/tests/run.sh` (no QEMU).
 
 On a Linux host with KVM add `--device /dev/kvm`; `chr.sh start` prints which accelerator it used (`kvm` or `tcg`).
 Without KVM (Windows, macOS, most CI runners) QEMU emulates the CPU (TCG): the router needs 30–90 s to boot (6.34 the
@@ -85,7 +85,7 @@ longest), the first SSH login can take up to about 40 s more.
 
 | variable | default | meaning |
 |---|---|---|
-| `CHR_VERSION` | `7.24.5` | RouterOS version; must have a complete row in `versions.txt` |
+| `CHR_VERSION` | none for `run-live.sh` (required; empty or unset is an error), `7.24.5` for `chr.sh` alone | RouterOS version; must have a complete row in `versions.txt` |
 | `CHR_CACHE` | `$HOME/.cache/lossik-chr` | directory with the downloaded `chr-<version>.img.zip` and `routeros-x86-<version>.npk` |
 | `CHR_BOOT_TIMEOUT` | `300` | seconds: `chr.sh wait` (reply to `/login`) counts them from `chr.sh start`; `chr.sh wait-ssh` waits that long on its one connection; also the limit of `smoke.php --ssh-login` and of the reboot wait in `upgrade.php` |
 | `CHR_LIVE_TIMEOUT` | `300` for `ssh-path=json`, `600` for `text` | seconds for the PHPUnit live phase (`timeout`); a positive integer |
@@ -109,7 +109,8 @@ any PHP outside 8.2–8.5.
   (upgrade), 6.43, 6.42.12, 6.34 (whole job retried twice — its boot and provisioning are flaky on TCG) and 7.25rc3
   (testing channel, allowed to fail). One version is one job (`timeout: 20m`); `CHR_CACHE` is inside the project
   directory so the GitLab `cache:` keeps the files between pipelines. No services, no Docker-in-Docker; QEMU runs with
-  TCG in the job container.
+  TCG in the job container. Scheduled pipelines also run the live suite on PHP 8.5 (`chr:schedule:php8.5`, image
+  `php:8.5.12-cli`) for 7.24.5 and 7.23.8; every other `chr` job runs on `php:8.2.35-cli`.
 - **GitHub Actions** (`.github/workflows/ci.yml`, job `chr`): RouterOS 7.24.5 only; enables KVM via a udev rule, caches
   `.cache/chr` and runs the same `docker run … php:8.2.35-cli bash tools/chr/run-live.sh`, adding `--device /dev/kvm`
   only when the host has a writable `/dev/kvm`.

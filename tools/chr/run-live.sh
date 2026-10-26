@@ -153,7 +153,7 @@ plan_live_run() {
 	plan_step "smoke (on failure: provision once, smoke once more)" \
 		'php "$DIR/smoke.php" || { echo "=== smoke failed: running provision.php once more"; php "$DIR/provision.php" && php "$DIR/smoke.php"; }'
 	plan_step "smoke ssh-login" 'php "$DIR/smoke.php" --ssh-login'
-	plan_step "live tests" "timeout $live_timeout vendor/bin/phpunit --group live --exclude-group $exclude_group \"\$@\""
+	plan_step "live tests" "timeout $live_timeout vendor/bin/phpunit --group live --exclude-group $exclude_group --fail-on-empty-test-suite \"\$@\""
 }
 
 # Prints the planned steps, one "<label> | <command>" line each.
@@ -212,7 +212,9 @@ verify_npk() {
 }
 
 main() {
-	export CHR_VERSION="${CHR_VERSION:-7.24.5}"
+	# no default: a job whose variable got lost must not test another version under its own name
+	[ -n "${CHR_VERSION:-}" ] || die "CHR_VERSION is not set: name the RouterOS version to test (a row of versions.txt)"
+	export CHR_VERSION
 	export CHR_CACHE="${CHR_CACHE:-$HOME/.cache/lossik-chr}"
 	plan_live_run "$CHR_VERSION" "$VERSIONS_FILE"
 
