@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/).
 
-## [3.0.0] - Unreleased
+## [3.0.0] - 2026-10-26
 
 A rewrite on top of `lossik/device-communication` 3.0, a transport-independent contract. No class of 2.x remains, so
 mixed code fails with "Class not found" instead of changing behaviour silently. The upgrade guide (in Czech) is
