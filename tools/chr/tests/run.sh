@@ -133,7 +133,7 @@ EOF
 
 GOLDEN_TEXT_IMAGE=$(cat <<'EOF'
 env | export MIKROTIK_LIVE_SSH_PATH=text
-env | export CHR_LIVE_TIMEOUT=900
+env | export CHR_LIVE_TIMEOUT=600
 env | export MIKROTIK_LIVE_HOST=127.0.0.1
 env | export MIKROTIK_LIVE_PORT_API=18728
 env | export MIKROTIK_LIVE_PORT_TLS=18729
@@ -147,13 +147,13 @@ provision | php "$DIR/provision.php"
 wait for SSH banner | bash "$DIR/chr.sh" wait-ssh
 smoke (on failure: provision once, smoke once more) | php "$DIR/smoke.php" || { echo "=== smoke failed: running provision.php once more"; php "$DIR/provision.php" && php "$DIR/smoke.php"; }
 smoke ssh-login | php "$DIR/smoke.php" --ssh-login
-live tests | timeout 900 vendor/bin/phpunit --group live --exclude-group live-json "$@"
+live tests | timeout 600 vendor/bin/phpunit --group live --exclude-group live-json "$@"
 EOF
 )
 
 GOLDEN_TEXT_UPGRADE=$(cat <<'EOF'
 env | export MIKROTIK_LIVE_SSH_PATH=text
-env | export CHR_LIVE_TIMEOUT=900
+env | export CHR_LIVE_TIMEOUT=600
 env | export MIKROTIK_LIVE_HOST=127.0.0.1
 env | export MIKROTIK_LIVE_PORT_API=18728
 env | export MIKROTIK_LIVE_PORT_TLS=18729
@@ -171,7 +171,7 @@ provision (upgraded 6.49.23) | php "$DIR/provision.php"
 wait for SSH banner | bash "$DIR/chr.sh" wait-ssh
 smoke (on failure: provision once, smoke once more) | php "$DIR/smoke.php" || { echo "=== smoke failed: running provision.php once more"; php "$DIR/provision.php" && php "$DIR/smoke.php"; }
 smoke ssh-login | php "$DIR/smoke.php" --ssh-login
-live tests | timeout 900 vendor/bin/phpunit --group live --exclude-group live-json "$@"
+live tests | timeout 600 vendor/bin/phpunit --group live --exclude-group live-json "$@"
 EOF
 )
 
@@ -203,8 +203,8 @@ php $DIR/smoke.php
 step: smoke ssh-login
 php $DIR/smoke.php --ssh-login
 step: live tests
-timeout 900 vendor/bin/phpunit --group live --exclude-group live-json --filter Foo
-env: MIKROTIK_LIVE_SSH_PATH=text CHR_LIVE_TIMEOUT=900 MIKROTIK_LIVE_HOST=127.0.0.1 MIKROTIK_LIVE_PORT_API=18728 MIKROTIK_LIVE_PORT_TLS=18729 MIKROTIK_LIVE_PORT_SSH=18722 MIKROTIK_LIVE_USER=admin MIKROTIK_LIVE_PASS=pw
+timeout 600 vendor/bin/phpunit --group live --exclude-group live-json --filter Foo
+env: MIKROTIK_LIVE_SSH_PATH=text CHR_LIVE_TIMEOUT=600 MIKROTIK_LIVE_HOST=127.0.0.1 MIKROTIK_LIVE_PORT_API=18728 MIKROTIK_LIVE_PORT_TLS=18729 MIKROTIK_LIVE_PORT_SSH=18722 MIKROTIK_LIVE_USER=admin MIKROTIK_LIVE_PASS=pw
 EOF
 )
 

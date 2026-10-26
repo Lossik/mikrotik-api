@@ -88,7 +88,7 @@ longest), the first SSH login can take up to about 40 s more.
 | `CHR_VERSION` | `7.24.5` | RouterOS version; must have a complete row in `versions.txt` |
 | `CHR_CACHE` | `$HOME/.cache/lossik-chr` | directory with the downloaded `chr-<version>.img.zip` and `routeros-x86-<version>.npk` |
 | `CHR_BOOT_TIMEOUT` | `300` | seconds: `chr.sh wait` (reply to `/login`) counts them from `chr.sh start`; `chr.sh wait-ssh` waits that long on its one connection; also the limit of `smoke.php --ssh-login` and of the reboot wait in `upgrade.php` |
-| `CHR_LIVE_TIMEOUT` | `300` for `ssh-path=json`, `900` for `text` (provisional until measured) | seconds for the PHPUnit live phase (`timeout`); a positive integer |
+| `CHR_LIVE_TIMEOUT` | `300` for `ssh-path=json`, `600` for `text` | seconds for the PHPUnit live phase (`timeout`); a positive integer |
 | `CHR_PASSWORD` | random per run (`run-live.sh`) | admin password set by `provision.php`; the PHP scripts refuse to run without it |
 | `CHR_REBOOT_TIMEOUT` | `600` | seconds `provision.php` waits after the reboot that enables the `ipv6` package (6.34 once needed 304 s) |
 | `CHR_RUN_DIR` | `/tmp/lossik-chr` | PID file, serial log and the booted image copy |

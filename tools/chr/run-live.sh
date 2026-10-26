@@ -113,7 +113,7 @@ plan_live_run() {
 		default_timeout=300
 	else
 		exclude_group="live-json"
-		default_timeout=900
+		default_timeout=600
 	fi
 	live_timeout="${CHR_LIVE_TIMEOUT:-$default_timeout}"
 	[[ "$live_timeout" =~ ^[1-9][0-9]*$ ]] || die "CHR_LIVE_TIMEOUT must be a number of seconds, got '$live_timeout'"
