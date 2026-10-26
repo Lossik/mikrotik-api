@@ -58,12 +58,6 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Cache CHR image
-        uses: actions/cache@v4
-        with:
-          path: .cache/chr
-          key: chr-${{ env.CHR_VERSION }}
-
       - name: CHR live run
         id: live
         run: |

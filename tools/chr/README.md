@@ -107,7 +107,8 @@ any PHP outside 8.2–8.5.
 - **GitLab CI**: the per-push smoke remains **7.24.5** and **6.49.18**. The old weekly jobs have been removed;
   there is one source of the full matrix, versions.txt, on GitHub.
 - **GitHub CI** (ci.yml): every push to master, 3.x or feature/**, and every PR, runs every distinct version in
-  versions.txt with fail-fast disabled, PHP 8.2.35 and KVM. The row controls text/json and image/upgrade exactly as
+  versions.txt with fail-fast disabled, PHP 8.2.35 and KVM. CI does not restore image/NPK caches; each run checks
+  availability at MikroTik, so a removed download cannot be hidden by an old cached copy. The row controls text/json and image/upgrade exactly as
   for a manual run. A push to routeros-tested does not trigger CI.
 
 ## New RouterOS releases
@@ -127,7 +128,8 @@ latest-run.sh supplies CHR_OFFICIAL_SHA256 for this explicit unpinned path; a pi
 committed checksum even if that variable is set. No checksum verification is disabled.
 
 Only the recording job has contents:write. It creates/updates the literal routeros-tested ref as an orphan data
-branch with tested.jsonl (version, channels, official SHA256, UTC date, result and run URL) and last-check.txt;
+branch with tested.jsonl (version, original channels, official SHA256, UTC date, result and run URL),
+channel-heads.json (current channel membership) and last-check.txt;
 master is never written. GitHub's contents permission cannot itself be restricted to a single branch, so the writer
 hardcodes that ref. Scheduled/manual runs are restricted to master; PRs never run the data writer.
 
@@ -136,12 +138,15 @@ At release time, fetch the data branch and import into your release/feature bran
 ```sh
 git fetch github routeros-tested
 git show FETCH_HEAD:tested.jsonl > /tmp/routeros-tested.jsonl
+git show FETCH_HEAD:channel-heads.json > /tmp/channel-heads.json
 php tools/chr/import-tested /tmp/routeros-tested.jsonl
 # Optional target copy for a dry run:
 php tools/chr/import-tested /tmp/routeros-tested.jsonl /tmp/versions.txt
 ```
 
-Only passed records with an official SHA256 are imported. Import is idempotent, never downgrades a channel, and
+Only passed records with an official SHA256 can add a new version. The sibling channel-heads.json is required;
+it can promote an already green version (or an existing pin) to another channel without another live run.
+Channel metadata alone cannot introduce an untested version. Import is idempotent, never downgrades a channel, and
 replaces uncommented heads of that channel. A row with a trailing # reason is a behavior boundary and is preserved
 verbatim, as are the oldest supported versions and the upgrade's base image (annotated in versions.txt).
 New 7.x versions use install=image, sha-source=official and json from 7.17 (otherwise text).

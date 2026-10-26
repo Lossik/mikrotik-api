@@ -25,11 +25,12 @@ async function discover({github, context, core}) {
   }
   const parent = await branchSha(github, context);
   fs.writeFileSync('.routeros-tested.jsonl', parent ? await readFile(github, context, 'tested.jsonl') : '');
-  const matrix = cp.execFileSync('docker', ['run', '--rm', '-v', `${process.cwd()}:/app`, '-w', '/app',
+  const discovery = JSON.parse(cp.execFileSync('docker', ['run', '--rm', '-v', `${process.cwd()}:/app`, '-w', '/app',
     'php:8.2.35-cli', 'php', 'tools/chr/tested.php', 'discover', 'tools/chr/versions.txt',
-    '.routeros-tested.jsonl', '.routeros-responses'], {encoding: 'utf8'}).trim();
-  core.setOutput('matrix', matrix);
-  core.setOutput('has_new', JSON.parse(matrix).include.length > 0);
+    '.routeros-tested.jsonl', '.routeros-responses'], {encoding: 'utf8'}));
+  core.setOutput('matrix', JSON.stringify({include: discovery.include}));
+  core.setOutput('channel_heads', JSON.stringify(discovery.heads));
+  core.setOutput('has_new', discovery.include.length > 0);
 }
 
 async function report({github, context}, version, unavailable, details = '') {
@@ -62,10 +63,17 @@ async function publish({github, context}) {
   }
   const now = new Date();
   const heartbeat = parent ? await readFile(github, context, 'last-check.txt') : '';
+  const previousHeads = parent ? await readFile(github, context, 'channel-heads.json') : '';
+  const heads = JSON.parse(process.env.CHR_CHANNEL_HEADS);
+  for (const channel of ['stable', 'testing', 'long-term']) {
+    if (!/^7\.[0-9]+(?:\.[0-9]+)?(?:(?:rc|beta)[0-9]+)?$/.test(heads[channel])) throw new Error('Invalid channel head');
+  }
+  const headContent = JSON.stringify(heads) + '\n';
   const content = records.map(row => JSON.stringify(row)).join('\n') + (records.length ? '\n' : '');
-  if (content === previous && heartbeat && now - new Date(heartbeat.trim()) < 30 * 86400000) return;
+  if (content === previous && headContent === previousHeads && heartbeat && now - new Date(heartbeat.trim()) < 30 * 86400000) return;
   const tree = await github.rest.git.createTree({...context.repo, tree: [
     {path: 'tested.jsonl', mode: '100644', type: 'blob', content},
+    {path: 'channel-heads.json', mode: '100644', type: 'blob', content: headContent},
     {path: 'last-check.txt', mode: '100644', type: 'blob', content: now.toISOString() + '\n'}
   ]});
   const commit = await github.rest.git.createCommit({...context.repo, message: 'Record RouterOS checks',

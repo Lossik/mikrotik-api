@@ -5,9 +5,12 @@ const path = require('node:path');
 const {publish, report} = require('../github.cjs');
 
 const context = {repo: {owner: 'owner', repo: 'repo'}, serverUrl: 'https://github.com', runId: 123};
+const initialHeads = {stable: '7.25', testing: '7.25', 'long-term': '7.23.8'};
+process.env.CHR_CHANNEL_HEADS = JSON.stringify(initialHeads);
 
 // GitHub is an external service. The fake records the requests that would change remote state.
 function service(files = {}, parent) {
+  if (parent) files = {'channel-heads.json': JSON.stringify(initialHeads) + '\n', ...files};
   const writes = [];
   const github = {rest: {repos: {getContent: async ({path: name}) => {
     if (!(name in files)) throw Object.assign(new Error('missing'), {status: 404});
@@ -44,7 +47,7 @@ function service(files = {}, parent) {
     await publish({...api, context});
     assert.deepEqual(api.writes.at(-1), ['update', {...context.repo, ref: 'heads/routeros-tested', sha: 'commit', force: false}]);
     assert.deepEqual(api.writes[1][1].parents, ['old']);
-    assert.deepEqual(api.writes[0][1].tree.map(row => row.path), ['tested.jsonl', 'last-check.txt']);
+    assert.deepEqual(api.writes[0][1].tree.map(row => row.path), ['tested.jsonl', 'channel-heads.json', 'last-check.txt']);
 
     // First successful release creates an orphan; another publication must retain failures and old successes.
     fs.mkdirSync('.routeros-results');
@@ -60,6 +63,17 @@ function service(files = {}, parent) {
     api = service({'tested.jsonl': JSON.stringify(passed) + '\n', 'last-check.txt': new Date().toISOString()}, 'old');
     await publish({...api, context});
     assert.equal(api.writes[0][1].tree[0].content, [passed, failed].map(row => JSON.stringify(row) + '\n').join(''));
+
+    // A known green version can become long-term without another live artifact or heartbeat being due.
+    fs.rmSync('.routeros-results', {recursive: true});
+    const previous = JSON.stringify(passed) + '\n';
+    api = service({'tested.jsonl': previous, 'last-check.txt': new Date().toISOString()}, 'old');
+    const promoted = {...initialHeads, 'long-term': '7.25'};
+    process.env.CHR_CHANNEL_HEADS = JSON.stringify(promoted);
+    await publish({...api, context});
+    assert.equal(api.writes[0][1].tree[0].content, previous);
+    assert.equal(api.writes[0][1].tree[1].content, JSON.stringify(promoted) + '\n');
+    process.env.CHR_CHANNEL_HEADS = JSON.stringify(initialHeads);
 
     // Missing auth/server access must fail, not overwrite the branch as if it did not exist.
     api = service();

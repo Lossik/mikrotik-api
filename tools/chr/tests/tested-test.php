@@ -59,6 +59,24 @@ foreach (['failed', 'unavailable'] as $result) {
     check(importTested($before, [array_replace($record, ['result' => $result])]) === $before, 'Non-green results must not import');
 }
 
+// Promotion changes channel membership, not the tested artifact or its verification result.
+$promoted = ['stable' => '7.25', 'testing' => '7.25', 'long-term' => '7.25'];
+$testingRecord = array_replace($record, ['channels' => ['testing']]);
+check(discoverVersions($before, [$testingRecord], ['stable' => '7.25 123', 'testing' => '7.25 123', 'long-term' => '7.25 123']) === [],
+    'Channel promotion must not rerun a known version');
+$promotedExpected = "# retained header\n7.17.2 stable $sha json image official # JSON boundary\n"
+    . "7.25  testing  $sha  json  image  official\n7.25  stable  $sha  json  image  official\n"
+    . "7.25  long-term  $sha  json  image  official\n";
+check(importTested($before, [$testingRecord], $promoted) === $promotedExpected, 'Promoted green version must update all heads');
+check(importTested($promotedExpected, [$testingRecord], $promoted) === $promotedExpected, 'Promotion import must be idempotent');
+$pinExpected = "# retained header\n7.17.2 stable $sha json image official # JSON boundary\n"
+    . "7.24.5 stable $sha json image official\n7.25rc3 testing $sha json image official\n"
+    . "7.24.5  long-term  $sha  json  image  official\n";
+check(importTested($before, [], ['long-term' => '7.24.5']) === $pinExpected,
+    'An existing pin promoted to another channel must reuse its verified artifact');
+check(importTested($before, [array_replace($record, ['result' => 'failed'])], $promoted) === $before,
+    'Channel metadata alone must not verify a new version');
+
 $file = tempnam(sys_get_temp_dir(), 'tested-');
 try {
     foreach ([['sha_source' => 'computed'], ['sha256' => 'bad'], ['result' => 'unknown'],

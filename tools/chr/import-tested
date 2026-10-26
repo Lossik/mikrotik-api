@@ -14,7 +14,7 @@ try {
     if ($before === false) {
         throw new RuntimeException('Cannot read versions file');
     }
-    $after = importTested($before, testedRecords($argv[1]));
+    $after = importTested($before, testedRecords($argv[1]), readChannelHeads(dirname($argv[1]) . '/channel-heads.json'));
     if ($before !== $after && file_put_contents($target, $after) !== strlen($after)) {
         throw new RuntimeException('Cannot write versions file');
     }

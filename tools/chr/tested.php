@@ -65,7 +65,30 @@ function discoverVersions(string $versions, array $records, array $responses): a
     return array_values($new);
 }
 
-function importTested(string $versions, array $records): string
+function channelHeads(array $responses): array
+{
+    $heads = [];
+    foreach (['stable', 'testing', 'long-term'] as $channel) {
+        $heads[$channel] = newestVersion($responses[$channel]);
+    }
+    return $heads;
+}
+
+function readChannelHeads(string $file): array
+{
+    $heads = json_decode(file_get_contents($file), true, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($heads) || count($heads) !== 3) {
+        throw new RuntimeException('Invalid channel heads');
+    }
+    foreach (['stable', 'testing', 'long-term'] as $channel) {
+        if (!validVersion($heads[$channel] ?? '')) {
+            throw new RuntimeException('Invalid channel head');
+        }
+    }
+    return $heads;
+}
+
+function importTested(string $versions, array $records, array $channelHeads = []): string
 {
     // Validate all input before changing anything. A failed/unavailable record is never an import candidate.
     $heads = [];
@@ -79,7 +102,28 @@ function importTested(string $versions, array $records): string
             }
         }
     }
-    $lines = preg_split('/\R/', rtrim($versions));
+    $lines = preg_split('/\R/', rtrim($versions, "\r\n"));
+    // Channel membership changes independently of verification. Reuse only a green result or an existing pin.
+    foreach ($channelHeads as $channel => $version) {
+        $verified = null;
+        foreach ($records as $record) {
+            if ($record['version'] === $version && $record['result'] === 'passed') {
+                $verified = $record;
+            }
+        }
+        foreach ($lines as $line) {
+            $cols = preg_split('/\s+/', trim(explode('#', $line, 2)[0]));
+            if (count($cols) === 6 && $cols[0] === $version) {
+                $verified = ['version' => $version, 'sha256' => $cols[2],
+                    'ssh_path' => $cols[3], 'install' => $cols[4], 'sha_source' => $cols[5]];
+            }
+        }
+        if ($verified !== null && (!isset($heads[$channel])
+            || version_compare($version, $heads[$channel]['version'], '>'))) {
+            $heads[$channel] = $verified;
+        }
+    }
+    $changed = false;
     foreach ($heads as $channel => $record) {
         $version = $record['version'];
         $exists = false;
@@ -102,10 +146,13 @@ function importTested(string $versions, array $records): string
             $cols = preg_split('/\s+/', trim($line));
             return str_contains($line, '#') || count($cols) < 6 || $cols[1] !== $channel;
         }));
-        $path = version_compare($version, '7.17', '>=') ? 'json' : 'text';
-        $lines[] = "$version  $channel  {$record['sha256']}  $path  image  official";
+        $path = $record['ssh_path'] ?? (version_compare($version, '7.17', '>=') ? 'json' : 'text');
+        $install = $record['install'] ?? 'image';
+        $source = $record['sha_source'];
+        $lines[] = "$version  $channel  {$record['sha256']}  $path  $install  $source";
+        $changed = true;
     }
-    return implode("\n", $lines) . "\n";
+    return $changed ? implode("\n", $lines) . "\n" : $versions;
 }
 
 if (realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
@@ -147,7 +194,8 @@ if (realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
                 foreach (['stable', 'testing', 'long-term'] as $channel) {
                     $responses[$channel] = file_get_contents($argv[4] . '/' . $channel);
                 }
-                echo json_encode(['include' => discoverVersions(file_get_contents($argv[2]), testedRecords($argv[3]), $responses)], JSON_THROW_ON_ERROR) . "\n";
+                echo json_encode(['include' => discoverVersions(file_get_contents($argv[2]), testedRecords($argv[3]), $responses),
+                    'heads' => channelHeads($responses)], JSON_THROW_ON_ERROR) . "\n";
                 break;
             default:
                 throw new RuntimeException('Usage: php tested.php matrix [versions.txt] | discover versions.txt tested.jsonl responses-directory');

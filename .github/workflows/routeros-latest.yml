@@ -21,6 +21,7 @@ jobs:
       code_sha: ${{ steps.discover.outputs.code_sha }}
       matrix: ${{ steps.discover.outputs.matrix }}
       has_new: ${{ steps.discover.outputs.has_new }}
+      channel_heads: ${{ steps.discover.outputs.channel_heads }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -105,6 +106,8 @@ jobs:
     if: always() && needs.discover.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      CHR_CHANNEL_HEADS: ${{ needs.discover.outputs.channel_heads }}
     permissions:
       contents: write
       actions: read

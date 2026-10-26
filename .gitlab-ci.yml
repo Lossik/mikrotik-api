@@ -16,10 +16,6 @@ chr:
   timeout: 20m
   variables:
     CHR_CACHE: $CI_PROJECT_DIR/.cache/chr
-  cache:
-    key: chr-$CHR_VERSION
-    paths:
-      - .cache/chr
   parallel:
     matrix:
       - CHR_VERSION:
@@ -27,6 +23,14 @@ chr:
           - "6.49.18"
   script:
     - bash tools/chr/tests/run.sh
-    - bash tools/chr/run-live.sh
+    - |
+      bash tools/chr/run-live.sh || {
+        rc=$?
+        if [ "$rc" = 78 ]; then
+          echo "RouterOS $CHR_VERSION unavailable; see the GitHub matrix availability issue"
+        else
+          exit "$rc"
+        fi
+      }
   after_script:
     - bash tools/chr/chr.sh stop
