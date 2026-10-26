@@ -71,6 +71,7 @@ function service(files = {}, parent) {
     const promoted = {...initialHeads, 'long-term': '7.25'};
     process.env.CHR_CHANNEL_HEADS = JSON.stringify(promoted);
     await publish({...api, context});
+    assert.equal(api.writes.length, 3, 'Channel promotion must publish even with no new live result');
     assert.equal(api.writes[0][1].tree[0].content, previous);
     assert.equal(api.writes[0][1].tree[1].content, JSON.stringify(promoted) + '\n');
     process.env.CHR_CHANNEL_HEADS = JSON.stringify(initialHeads);
