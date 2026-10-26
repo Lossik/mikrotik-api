@@ -7,8 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ## [3.0.0] - Unreleased
 
 A rewrite on top of `lossik/device-communication` 3.0, a transport-independent contract. No class of 2.x remains, so
-mixed code fails with "Class not found" instead of changing behaviour silently. The upgrade guide comes with the
-release.
+mixed code fails with "Class not found" instead of changing behaviour silently. The upgrade guide (in Czech) is
+`docs/upgrade-3.0.cs.md`.
 
 ### Changed
 
@@ -53,7 +53,11 @@ release.
   says otherwise. 2.x always offered `ADH:ALL` and checked nothing; that did not even connect to a router without
   a certificate on OpenSSL 1.1.0+.
 - **Replies are matched by `.tag`.** A reply without a `.tag` (except `!fatal`) or with a foreign one is a
-  `ProtocolException`. RouterOS 7.23.8 and 7.24.5 tag every sentence they send except `!fatal`.
+  `ProtocolException`. Every RouterOS of the test matrix (6.34 … 7.25rc3) tags every sentence it sends except
+  `!fatal`.
+- **Supported RouterOS**: the whole 7.x line, tested at its boundaries, and 6.x from 6.34 (the first CHR image);
+  other versions go the same way without a guarantee, nothing is refused because of the version. The README lists
+  what is tested on every CI run, weekly, only by hand and not at all.
 
 ### Fixed
 
@@ -76,17 +80,20 @@ The known issues of 2.x:
   come without the state before `listen`, a removed item as `.id` and `.dead`.
 - `Query` conditions `where`, `has`, `hasNot`, `less`, `greater`, `and`, `or`, `not`, sent as the stack words of
   the API (`?k=v`, `?k`, `?-k`, `?<k=v`, `?>k=v`, `?#&`, `?#|`, `?#!`).
-- A live test suite against a real CHR (`tools/chr`, RouterOS 7.24.5 and 7.23.8).
+- A live test suite against a real CHR in QEMU (`tools/chr`): RouterOS 7.24.5 and 6.49.18 on every CI run; 7.23.8,
+  7.17.2, 7.16.2, 7.12.2, 7.1, 6.49.23 (installed as an upgrade from 6.49.20), 6.43, 6.42.12, 6.34 and 7.25rc3 (testing
+  channel, allowed to fail) weekly. On CHR 6.x the harness enables the `ipv6` package.
 
 ### Notes
 
-- RouterOS before 6.43 logs in with the MD5 challenge, as in 2.x. That login is implemented and tested against a
-  fake router only; it has not been run through this library against a real RouterOS before 6.43 (a bare-socket
-  client was checked on CHR 6.42.12). The first `/login` sentence carries the password in clear text (the old router
-  ignores it and sends the challenge), so use TLS on any network you do not trust.
+- RouterOS before 6.43 logs in with the MD5 challenge, as in 2.x, automatically: the client sends the login of 6.43
+  and newer first and answers the challenge of an older router on the same connection. The live suite logs in this
+  way on 6.34 and 6.42.12; 6.43 accepts both logins. The first `/login` sentence carries the password in clear text
+  (the old router ignores it and sends the challenge), so use TLS on any network you do not trust.
 - Known limits: one command at a time per connection; no TCP keepalive (it would need `ext-sockets`), so a router
   that died without closing the connection is noticed only through an `idleTimeout`; without `responseTimeout` a
-  peer that sends one byte at a time is never cut off. See the README.
+  peer that sends one byte at a time is never cut off; `less()`/`greater()` with an IPv4 address compare as text on
+  RouterOS 6.42.12 … 7.25rc3 (the console, and so `lossik/mikrotik-ssh`, as addresses). See the README.
 - When the router reboots under a running `listen`, the call ends normally, with `ConnectionException` or, rarely,
   with `TimeoutException`; it does not hang, and the next call on the transport throws `ConnectionException`.
 

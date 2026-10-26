@@ -7,7 +7,8 @@ implementation of its `Transport`, and you talk to the router through its `Clien
 **3.0 is in development on this branch and not released.** It has a new namespace (`Lossik\Mikrotik\Api\`) and is
 built on `lossik/device-communication` 3.0. For the released version see the `2.x` branch and
 `composer require lossik/mikrotik-api:^2.1`. This README describes 3.0; the changes against 2.x are in the
-[changelog](CHANGELOG.md).
+[changelog](CHANGELOG.md). The links to `lossik/device-communication` point to its repository, whose published
+documentation is that of 2.x; until 3.0 is released, its 3.0 documentation is on its 3.0 development branch.
 
 A REST transport is planned as a separate package on top of `lossik/device-communication`; it is not part of this
 package.
@@ -16,12 +17,37 @@ package.
 
 - **PHP**: see [Supported PHP](#supported-php).
 - **Extensions**: `ext-openssl` (TLS) and `ext-iconv` (charset conversion), both declared in `composer.json`.
-- **RouterOS**: the whole 7.x line is supported; the live test suite runs against CHR **7.24.5** and **7.23.8**. The
-  API protocol itself has not changed since 6.43. Routers before 6.43 answer the login with an MD5 challenge; the
-  client answers it, but this is **implemented and verified against a fake router only, not through this library
-  against a real RouterOS before 6.43** (a bare-socket client was checked on CHR 6.42.12). Anything older than 6.x
-  is not verified. On plain TCP the password travels in clear text in the first sentence of every login (the
-  pre-6.43 router ignores it and sends the challenge), so use [TLS](#tls) unless the network is trusted.
+- **RouterOS**: see [Supported RouterOS](#supported-routeros).
+
+## Supported RouterOS
+
+The whole 7.x line is supported and tested at its boundaries; 6.x is tested from 6.34, the first CHR image. Other
+versions go the same way without a guarantee: nothing is refused because of the version, and what the router does not
+do ends loudly (`TrapException` with the router's message, or `ProtocolException`), not with silently wrong data.
+
+| | RouterOS |
+|---|---|
+| **tested on every CI run** (live suite against CHR) | 7.24.5, 6.49.18 |
+| **tested weekly** (live suite against CHR) | 7.23.8, 7.17.2, 7.16.2, 7.12.2, 7.1, 6.49.23 (installed as an upgrade from 6.49.20, see below), 6.43, 6.42.12, 6.34; 7.25rc3 of the testing channel (allowed to fail) |
+| **probed by hand, outside CI** (measurement scripts, not this test suite) | 7.17, 7.17.1, 7.13, 7.13.5, 6.49.22, 6.48.7, 6.47.10, 6.45.9; 6.33 and 5.26 from the x86 ISO (5.x: the API only, logged in with MD5) |
+| **not verified** | every other version, among them 5.x other than 5.26, 6.0–6.32, the 6.x releases between the measured ones (e.g. 6.43.1–6.44.x, 6.49.19–6.49.21), 7.0 (there is no CHR image of it) and the 7.x releases between the measured ones (above all 7.17.3–7.23.7 and 7.24.0–7.24.4) |
+
+- **6.49.23 is tested as an installation upgraded from 6.49.20.** Fresh official CHR images 6.49.21 and newer lose
+  their configuration in QEMU (a defect of the image, not of the library); 6.49.19–6.49.22 are not verified (6.49.22
+  was only probed by hand: its fresh image loses the configuration like the one of 6.49.23).
+- **Login before 6.43** is automatic, there is no option: the client sends the login of 6.43 and newer first, and a
+  router before 6.43 answers it with an MD5 challenge, which the client answers on the same connection. Measured: the
+  live suite logs in with MD5 on 6.34 and 6.42.12, which know only that login; on 6.43 the first login succeeds (by
+hand, 6.43 accepted the MD5 answer too); 5.26 and 6.33 by hand. From 6.45.9
+  on (measured 6.45.9 … 7.24.5) RouterOS refuses the MD5 answer, which does not matter, because the first login
+  succeeds there. **The password travels in clear text** in the first sentence of every login, also to a router
+  before 6.43, which ignores it and sends the challenge: on plain TCP use [TLS](#tls) for old devices unless the
+  network is trusted.
+- **Verified on CHR only**, not on hardware: menus a CHR does not have (`ether` settings of real ports, wireless,
+  switch chips) are not covered.
+- The live suite covers TLS (`fingerprint()`, a foreign fingerprint, `unverified()`), `listen` with `/cancel`, `/quit`,
+  the idle timeout and a reboot under `listen`; those tests pass on every version of the matrix, 6.34 included (for
+  one difference in the rows of `listen` on 6.x see [Streaming](#streaming)).
 
 ## Installation
 
@@ -113,7 +139,7 @@ Set `tls` to use the `api-ssl` service (port 8729 unless `port` says otherwise):
 | factory | what it checks |
 |---|---|
 | `TlsOptions::verified(?string $cafile = null, ?string $capath = null, ?string $peerName = null)` | the certificate chain (the system CA store, or the given CA file or directory) and that the certificate carries the host name; `peerName` = the name it must carry, default the host passed to `connect()` |
-| `TlsOptions::fingerprint(string $sha256)` | only the certificate with this SHA-256 fingerprint (64 hex digits) is accepted; chain and host name are not checked. For the self-signed certificate of a router; `/certificate print` shows its `fingerprint` |
+| `TlsOptions::fingerprint(string $sha256)` | only the certificate with this SHA-256 fingerprint (64 hex digits) is accepted; chain and host name are not checked. For the self-signed certificate of a router; `/certificate print` shows its `fingerprint` (also on 6.x) |
 | `TlsOptions::unverified()` | **nothing** - see below |
 
 <!-- run: tls-verified -->
@@ -260,7 +286,8 @@ $version = $client->version();   // the connection works after the cancel
 
 - **Shape of the rows** (measured on `/interface`, 7.24.5 and 7.23.8): there is no row for the state before `listen`
   started; a row carries the item, not only the changed property; a removed item arrives as `.id` and
-  `.dead` = `'true'` and nothing else.
+  `.dead` = `'true'` and nothing else. On 6.x (measured on 6.34 and 6.49.18) an interface created just before
+  `listen` sometimes arrives once more with its state from before the change, ahead of the row with the change.
 - **`idleTimeout`** of `listen` (default `null`) is the longest silence of the router; when it runs out, `listen`
   throws `TimeoutException` (`->limit === 'idleTimeout'`) and the transport is closed. It is **not** the
   `idleTimeout` of `ApiOptions`, and `responseTimeout` does not apply to a stream.
@@ -278,9 +305,10 @@ $version = $client->version();   // the connection works after the cancel
 
 ## Charset
 
-By default (`charset: 'UTF-8'`) the bytes of every word pass unchanged in both directions. RouterOS 7 stores and
-returns the bytes it receives, and its console shows them as UTF-8 (measured on 7.23.8 and 7.24.5; not measured on
-6.x). Any other charset (e.g. `'windows-1250'`) converts every word with `iconv` in both directions.
+By default (`charset: 'UTF-8'`) the bytes of every word pass unchanged in both directions. RouterOS stores and
+returns the bytes it receives (measured with UTF-8 and windows-1250 on every version of the test matrix, 6.34
+included), and the console of RouterOS 7 shows them as UTF-8 (measured on 7.23.8 and 7.24.5). Any other charset
+(e.g. `'windows-1250'`) converts every word with `iconv` in both directions.
 
 2.x defaulted to `WINDOWS-1250`. If you stored data through 2.x with that default, the router holds cp1250 bytes
 that are not valid UTF-8: read them with `charset: 'windows-1250'` (and write with it, to keep the old encoding).
@@ -316,17 +344,45 @@ try {
 - **No keepalive** (see Streaming): a dead peer without FIN is noticed only through an `idleTimeout`.
 - **Long silent commands**: `/system/backup/save` and a large `/tool/fetch` can stay silent for longer than the
   default `idleTimeout` of 60 s; raise `idleTimeout` for such a connection.
-- **`Query::where('key', '')` matches nothing** (RouterOS answers `!empty`), it does not mean "any value". A
-  property with an empty value (an empty `comment`) is not returned by `print` at all: the key is missing from the row.
-- **Replies are always matched by `.tag`**: RouterOS 7.23.8 and 7.24.5 tag every sentence except `!fatal`. A router
-  that left a sentence untagged would end the connection with `ProtocolException`.
-- **Not covered by the live tests**: IPv6 hosts, `listen` over TLS, RouterOS before 7.23.8 through this library.
+- **A change of several items is not atomic**: `set` with several IDs (`.id=*1,*FFFF`, through `run('set', …)` or
+  `update()`) changes the items before the first unknown ID, then fails with `TrapException` (`no such item`); the
+  earlier items stay changed. Measured by the live suite of mikrotik-ssh, which compares with the API, on every
+  version of the matrix; the console behaves the same.
+- **`Query::where('key', '')` matches nothing** (an empty reply: 7.23.8 and newer send `!empty`, 7.17.2 and the
+  older measured versions `!done` alone), it does not mean "any value". A property with an empty value (an empty `comment`) is not
+  returned by `print` at all: the key is missing from the row.
+- **`Query::has('key')` is the existence of the property**, also for a flag: `has('disabled')` (`?disabled`) matches
+  every item that has the property, not the disabled ones (measured on 6.34, 6.49.23, 7.1, 7.17.2 and 7.24.5); for the
+  disabled ones use `where('disabled', 'true')`.
+- **`less()` and `greater()` are sent as they are** (`?<k=v`, `?>k=v`) for any value; the live suite of this
+  package does not test them. Measured through the live suite of mikrotik-ssh, which runs the same query over the
+  API:
+  - an **integer** over a numeric attribute is compared as a number, the same as the console;
+  - an **IPv4 address is compared as text** on RouterOS 6.42.12 … 7.25rc3, also over an IP-typed attribute (the
+    `address` of `/ip/dhcp-server/lease`): `less('address', '10.97.3.10')` matches `10.97.3.1` but not
+    `10.97.3.2` … `10.97.3.9`. Only 6.34 compared addresses as addresses. The console (mikrotik-ssh) compares them
+    as addresses on every version, so the two libraries return different rows wherever text order and address
+    order differ (an octet 9 against 10). Compare IPv4 addresses in PHP if you need address order;
+  - a number compared with a string attribute (`less('comment', '5')`) gives a different result on the API than on
+    the console of 6.x and 7.x; other values (a string, a time like `1h`) are not documented by MikroTik and not
+    tested (mikrotik-ssh refuses an operand that is not a non-negative integer or an IPv4 address).
+- **Replies are always matched by `.tag`**: every version of the test matrix (6.34 … 7.25rc3) tags every sentence
+  except `!fatal`. A router that left a sentence untagged would end the connection with `ProtocolException`.
+- **Not covered by the live tests**: IPv6 hosts, `listen` over TLS.
 
 ## Tests
 
 `composer test` runs the unit suite against a fake RouterOS server (`tests/Support/FakeRouter.php`); `composer ci`
 adds `phpcs` and PHPStan. The live suite runs against a real CHR in QEMU inside one `php` container, with Docker as
-the only requirement: see [tools/chr/README.md](tools/chr/README.md).
+the only requirement: see [tools/chr/README.md](tools/chr/README.md) for the local run. In CI it runs on every
+pipeline for 7.24.5 and 6.49.18 and weekly for the rest of the [matrix](#supported-routeros), one version per job. On
+CHR 6.x the harness enables the `ipv6` package (installed but disabled on those images), which costs one extra reboot
+per job; 6.49.23 is booted from the 6.49.20 image and upgraded.
+
+## Upgrading from 2.x
+
+The upgrade guide (in Czech) is [docs/upgrade-3.0.cs.md](docs/upgrade-3.0.cs.md); the changes are listed in the
+[changelog](CHANGELOG.md).
 
 ## Supported PHP
 
