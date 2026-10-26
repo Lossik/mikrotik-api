@@ -4,7 +4,11 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [3.0.1] - Unreleased
+
+### Fixed
+
+- A refused TCP connection on Windows or slow networks was reported as `TimeoutException('connectTimeout')` whenever the attempt took longer than `connectTimeout` (Windows retries SYN for ~2 s). It is now classified by errno: only `ETIMEDOUT` (110 on Linux, 60 on Darwin/macOS, 10060 on Windows) and an errno-less failure (`0`) after `connectTimeout` are a `TimeoutException`; any other errno is a `ConnectionException`.
 
 ### Changed
 

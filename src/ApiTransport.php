@@ -33,6 +33,11 @@ use Lossik\Mikrotik\Api\Protocol\WordCodec;
  */
 final class ApiTransport implements StreamingTransport
 {
+    public const ERRNO_ETIMEDOUT_LINUX = 110;
+    public const ERRNO_ETIMEDOUT_DARWIN = 60;
+    public const ERRNO_ETIMEDOUT_MACOS = self::ERRNO_ETIMEDOUT_DARWIN;
+    public const ERRNO_ETIMEDOUT_WINDOWS = 10060;
+
     /** @var resource|null */
     private $stream;
 
@@ -55,10 +60,11 @@ final class ApiTransport implements StreamingTransport
     /**
      * Opens the connection and logs in.
      *
-     * @throws TimeoutException the connection was not opened within connectTimeout ('connectTimeout'), or the login
-     *                          response ran out of idleTimeout / responseTimeout
-     * @throws ConnectionException the device is unreachable or closed the connection, or the TLS handshake failed
-     *                             (the certificate or its fingerprint did not verify, no common cipher)
+     * @throws TimeoutException connect timed out (ETIMEDOUT, or errno 0 after connectTimeout; 'connectTimeout'), or
+     *                          the login response ran out of idleTimeout / responseTimeout
+     * @throws ConnectionException the device is unreachable, refused the connection, closed the connection, or the
+     *                             TLS handshake failed (the certificate or its fingerprint did not verify, no common
+     *                             cipher)
      * @throws AuthenticationException wrong user name or password (also at the legacy MD5 login)
      * @throws ProtocolException the legacy login challenge of the device is malformed
      * @throws CommunicationException
@@ -103,7 +109,8 @@ final class ApiTransport implements StreamingTransport
                 $address,
                 implode('; ', array_filter([$errstr !== '' ? sprintf('%s (%d)', $errstr, $errno) : '', ...$warnings])),
             );
-            if (SentenceReader::now() - $started >= $options->connectTimeout) {
+            $elapsed = SentenceReader::now() - $started;
+            if (self::connectExceptionClass($errno, $elapsed, $options->connectTimeout) === TimeoutException::class) {
                 throw new TimeoutException($message, 'connectTimeout');
             }
             throw new ConnectionException($message);
@@ -118,6 +125,31 @@ final class ApiTransport implements StreamingTransport
         }
 
         return $transport;
+    }
+
+    /**
+     * Decides whether a failed connect() attempt should be classified as a TimeoutException or a ConnectionException.
+     *
+     * Only explicit timeout errnos (Linux 110, Darwin/macOS 60, Windows 10060) or an errno 0 failure whose elapsed
+     * time reached connectTimeout (e.g. TLS handshake stall) are treated as timeouts. Any other errno is a
+     * ConnectionException (e.g. ECONNREFUSED 111/61/10061) regardless of elapsed time.
+     *
+     * @return class-string<ConnectionException>
+     * @internal
+     */
+    public static function connectExceptionClass(?int $errno, float $elapsed, float $connectTimeout): string
+    {
+        $code = $errno ?? 0;
+        if (
+            $code === self::ERRNO_ETIMEDOUT_LINUX
+            || $code === self::ERRNO_ETIMEDOUT_DARWIN
+            || $code === self::ERRNO_ETIMEDOUT_WINDOWS
+            || ($code === 0 && $elapsed >= $connectTimeout)
+        ) {
+            return TimeoutException::class;
+        }
+
+        return ConnectionException::class;
     }
 
     /**
