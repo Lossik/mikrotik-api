@@ -89,6 +89,11 @@ cmd_start() {
 	fi
 
 	sha=$(expected_sha)
+	# Pinned versions always use the committed checksum, regardless of the environment.
+	if [ -z "$sha" ] && [ -n "${CHR_OFFICIAL_SHA256:-}" ]; then
+		[[ "$CHR_OFFICIAL_SHA256" =~ ^[a-f0-9]{64}$ ]] || die "invalid official SHA256"
+		sha="$CHR_OFFICIAL_SHA256"
+	fi
 	[ -n "$sha" ] || die "version $CHR_VERSION is not listed in $DIR/versions.txt"
 	install=$(row_install)
 	case "$install" in
@@ -106,8 +111,7 @@ cmd_start() {
 		t0=$(date +%s)
 		log "downloading $DOWNLOAD_URL/chr-$CHR_VERSION.img.zip"
 		rm -f "$zip.part"
-		curl -fsSL --retry 3 -o "$zip.part" "$DOWNLOAD_URL/chr-$CHR_VERSION.img.zip" \
-			|| { rm -f "$zip.part"; die "download of chr-$CHR_VERSION.img.zip failed"; }
+		bash "$DIR/download.sh" "$DOWNLOAD_URL/chr-$CHR_VERSION.img.zip" "$zip.part"
 		actual=$(sha256sum "$zip.part" | awk '{print $1}')
 		if [ "$actual" != "$sha" ]; then
 			rm -f "$zip.part"

@@ -27,8 +27,8 @@ do ends loudly (`TrapException` with the router's message, or `ProtocolException
 
 | | RouterOS |
 |---|---|
-| **tested on every CI run** (live suite against CHR) | 7.24.5, 6.49.18 |
-| **tested weekly** (live suite against CHR) | 7.23.8, 7.17.2, 7.16.2, 7.12.2, 7.1, 6.49.23 (installed as an upgrade from 6.49.20, see below), 6.43, 6.42.12, 6.34; 7.25rc3 of the testing channel (allowed to fail) |
+| **tested on every GitLab CI run** (live suite against CHR) | 7.24.5, 6.49.18 |
+| **tested on code changes on GitHub** (live suite against CHR) | every version in [versions.txt](tools/chr/versions.txt), including text/json boundaries and the 6.49.23 upgrade |
 | **probed by hand, outside CI** (measurement scripts, not this test suite) | 7.17, 7.17.1, 7.13, 7.13.5, 6.49.22, 6.48.7, 6.47.10, 6.45.9; 6.33 and 5.26 from the x86 ISO (5.x: the API only, logged in with MD5) |
 | **not verified** | every other version, among them 5.x other than 5.26, 6.0–6.32, the 6.x releases between the measured ones (e.g. 6.43.1–6.44.x, 6.49.19–6.49.21), 7.0 (there is no CHR image of it) and the 7.x releases between the measured ones (above all 7.17.3–7.23.7 and 7.24.0–7.24.4) |
 
@@ -380,9 +380,13 @@ try {
 `composer test` runs the unit suite against a fake RouterOS server (`tests/Support/FakeRouter.php`); `composer ci`
 adds `phpcs` and PHPStan. The live suite runs against a real CHR in QEMU inside one `php` container, with Docker as
 the only requirement: see [tools/chr/README.md](tools/chr/README.md) for the local run. In CI it runs on every
-pipeline for 7.24.5 and 6.49.18 and weekly for the rest of the [matrix](#supported-routeros), one version per job. On
+pipeline for 7.24.5 and 6.49.18; GitHub runs the whole [matrix](#supported-routeros) on code changes, one version per job. On
 CHR 6.x the harness enables the `ipv6` package (installed but disabled on those images), which costs one extra reboot
 per job; 6.49.23 is booted from the 6.49.20 image and upgraded.
+
+New RouterOS releases are checked daily on GitHub, verified against the official SHA256 and tested once. Results live
+in the orphan branch routeros-tested. At release time, import green records with php tools/chr/import-tested;
+see [CHR automation](tools/chr/README.md#new-routeros-releases) for manual dispatch, import and the 60-day schedule rule.
 
 ## Upgrading from 2.x
 

@@ -2,9 +2,24 @@ name: CI
 
 on:
   push:
+    branches: [master, 3.x, 'feature/**']
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
+  chr-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Data writer and notification tests
+        run: node tools/chr/tests/github-test.cjs
+      - id: matrix
+        run: echo "matrix=$(docker run --rm -v "$PWD:/app" -w /app php:8.2.35-cli php tools/chr/tested.php matrix)" >> "$GITHUB_OUTPUT"
+
   unit:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -23,10 +38,17 @@ jobs:
         run: docker run --rm -v "$PWD:/app" -e DC_REF -e DC_URL -w /app ${{ matrix.image }} bash tools/ci.sh
 
   chr:
+    needs: chr-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.chr-matrix.outputs.matrix) }}
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      CHR_VERSION: "7.24.5"
+      CHR_VERSION: ${{ matrix.version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -43,9 +65,24 @@ jobs:
           key: chr-${{ env.CHR_VERSION }}
 
       - name: CHR live run
+        id: live
         run: |
           mkdir -p .cache/chr
-          KVM=()
-          if [ -w /dev/kvm ]; then KVM=(--device /dev/kvm); fi
+          test -w /dev/kvm
+          KVM=(--device /dev/kvm)
+          docker run --rm -v "$PWD:/app" -w /app php:8.2.35-cli bash tools/chr/tests/run.sh
+          set +e
           docker run --rm -v "$PWD:/app" -v "$PWD/.cache/chr:/cache" -e CHR_CACHE=/cache -e CHR_VERSION -e DC_REF -e DC_URL \
             -w /app "${KVM[@]}" php:8.2.35-cli bash tools/chr/run-live.sh
+          rc=$?
+          if [ "$rc" = 78 ]; then
+            echo "unavailable=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          exit "$rc"
+
+      - name: Report removed image
+        if: steps.live.outputs.unavailable == 'true' && github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: await require('./tools/chr/github.cjs').report({github, context}, process.env.CHR_VERSION, true)

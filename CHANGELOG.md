@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+
+- GitHub runs the boundary RouterOS matrix on code changes and checks new stable/testing/long-term releases daily.
+  Official SHA256-verified live results are recorded in the orphan routeros-tested branch, then imported at release
+  time with tools/chr/import-tested. Boundary rows are preserved; only uncommented channel heads are replaced.
+- Removed the old GitLab weekly CHR jobs; the per-push 7.24.5 / 6.49.18 smoke remains. Removed MikroTik images are
+  reported with an issue and require an explicit documented matrix change; no backup images are maintained.
+
 ## [3.0.0] - 2026-10-26
 
 A rewrite on top of `lossik/device-communication` 3.0, a transport-independent contract. No class of 2.x remains, so

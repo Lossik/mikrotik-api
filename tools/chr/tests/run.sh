@@ -344,3 +344,6 @@ main() {
 }
 
 main "$@"
+
+php "$TESTS_DIR/tested-test.php"
+bash "$TESTS_DIR/download-test.sh"

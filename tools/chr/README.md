@@ -104,15 +104,63 @@ any PHP outside 8.2–8.5.
 
 ## CI
 
-- **GitLab CI** (`.gitlab-ci.yml`): every pipeline runs the job `chr` for RouterOS **7.24.5** and **6.49.18**.
-  Scheduled pipelines (`CI_PIPELINE_SOURCE == "schedule"`, meant weekly) add 7.23.8, 7.17.2, 7.16.2, 7.12.2, 7.1, 6.49.23
-  (upgrade), 6.43, 6.42.12, 6.34 (whole job retried twice — its boot and provisioning are flaky on TCG) and 7.25rc3
-  (testing channel, allowed to fail). One version is one job (`timeout: 20m`); `CHR_CACHE` is inside the project
-  directory so the GitLab `cache:` keeps the files between pipelines. No services, no Docker-in-Docker; QEMU runs with
-  TCG in the job container. Scheduled pipelines also run the live suite on PHP 8.5 (`chr:schedule:php8.5`, image
-  `php:8.5.12-cli`) for 7.24.5 and 7.23.8; every other `chr` job runs on `php:8.2.35-cli`.
-- **GitHub Actions** (`.github/workflows/ci.yml`, job `chr`): RouterOS 7.24.5 only; enables KVM via a udev rule, caches
-  `.cache/chr` and runs the same `docker run … php:8.2.35-cli bash tools/chr/run-live.sh`, adding `--device /dev/kvm`
-  only when the host has a writable `/dev/kvm`.
+- **GitLab CI**: the per-push smoke remains **7.24.5** and **6.49.18**. The old weekly jobs have been removed;
+  there is one source of the full matrix, versions.txt, on GitHub.
+- **GitHub CI** (ci.yml): every push to master, 3.x or feature/**, and every PR, runs every distinct version in
+  versions.txt with fail-fast disabled, PHP 8.2.35 and KVM. The row controls text/json and image/upgrade exactly as
+  for a manual run. A push to routeros-tested does not trigger CI.
+
+## New RouterOS releases
+
+routeros-latest.yml checks MikroTik's HTTPS NEWESTa7.stable, NEWESTa7.testing and NEWESTa7.long-term endpoints
+at 05:17 UTC daily. For a manual check use the **Latest RouterOS ? Run workflow** button on master, or:
+
+```sh
+gh workflow run routeros-latest.yml --ref master
+```
+
+A version already in versions.txt or in routeros-tested is skipped, including recorded failures. If several channels
+point at the same version, it runs once and the record lists all those channels. To retry a recorded failure,
+maintainers must deliberately remove its record from the data branch before dispatching again.
+The official chr-<version>.img.zip.sha256 is fetched over HTTPS, then the image is checked before booting.
+latest-run.sh supplies CHR_OFFICIAL_SHA256 for this explicit unpinned path; a pinned version always uses the
+committed checksum even if that variable is set. No checksum verification is disabled.
+
+Only the recording job has contents:write. It creates/updates the literal routeros-tested ref as an orphan data
+branch with tested.jsonl (version, channels, official SHA256, UTC date, result and run URL) and last-check.txt;
+master is never written. GitHub's contents permission cannot itself be restricted to a single branch, so the writer
+hardcodes that ref. Scheduled/manual runs are restricted to master; PRs never run the data writer.
+
+At release time, fetch the data branch and import into your release/feature branch (do **not** merge the orphan):
+
+```sh
+git fetch github routeros-tested
+git show FETCH_HEAD:tested.jsonl > /tmp/routeros-tested.jsonl
+php tools/chr/import-tested /tmp/routeros-tested.jsonl
+# Optional target copy for a dry run:
+php tools/chr/import-tested /tmp/routeros-tested.jsonl /tmp/versions.txt
+```
+
+Only passed records with an official SHA256 are imported. Import is idempotent, never downgrades a channel, and
+replaces uncommented heads of that channel. A row with a trailing # reason is a behavior boundary and is preserved
+verbatim, as are the oldest supported versions and the upgrade's base image (annotated in versions.txt).
+New 7.x versions use install=image, sha-source=official and json from 7.17 (otherwise text).
+Review the diff and commit versions.txt with the release; the workflow never edits it.
+
+A new release's failed live run stays red and opens a GitHub issue, or comments on an existing open issue for the
+same version. The issue includes the run URL, channels and the tail of the failing log; full logs/JUnit are artifacts.
+Enable GitHub Actions failure email notifications: scheduled-run notifications go to the last user who changed the
+cron expression. The ordinary code-change matrix uses red checks, without failure issues.
+
+HTTP 404/410 for an image/NPK is reported as unavailable,
+with a deduplicated issue suggesting manual removal from the matrix. On PRs it is reported in the job log, since
+fork tokens cannot create issues. Network errors are retried and then fail normally; a missing official checksum or
+a SHA256 mismatch always fails.
+No backup image is kept. When removing a boundary, state the version, reason and lost live coverage openly in
+README/CHANGELOG; if necessary move the oldest-supported version. The workflow never removes versions itself.
+
+GitHub disables scheduled workflows in public repositories after 60 days without repository activity. The data
+writer refreshes last-check.txt at most once per 30 days even with no new version. Check Actions if scheduling is
+nevertheless disabled; a maintainer must re-enable it. Schedule timing is best effort, not a release SLA.
 
 When a run fails, `run-live.sh` prints the tail of the CHR serial log before stopping QEMU.
