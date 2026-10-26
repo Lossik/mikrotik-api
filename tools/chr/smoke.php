@@ -12,6 +12,9 @@ declare(strict_types=1);
  *   php tools/chr/smoke.php --ssh-banner  readiness probe for chr.sh wait-ssh: succeeds when the SSH port sends
  *                                         a line starting with "SSH-"; a bare TCP connect does not count (the QEMU
  *                                         port forward accepts connections before the router's SSH service is up)
+ *   php tools/chr/smoke.php --ssh-login   warm-up SSH login outside PHPUnit: one patient full SSH login + one exec
+ *                                         (non-empty output required); without phpseclib skipped only when the
+ *                                         repository's composer.json does not require phpseclib/phpseclib
  */
 
 require __DIR__ . '/routeros.php';
@@ -19,19 +22,27 @@ require __DIR__ . '/routeros.php';
 $loginOnly = in_array('--login-only', array_slice($argv, 1), true);
 
 if (in_array('--ssh-banner', array_slice($argv, 1), true)) {
-    $socket = @stream_socket_client('tcp://' . CHR_HOST . ':' . CHR_SSH_PORT, $errno, $errstr, 5.0);
+    $timeout = (float) chr_env('CHR_BOOT_TIMEOUT', '300');
+    $deadline = microtime(true) + $timeout;
+    $socket = false;
+    while (($left = $deadline - microtime(true)) > 0) {
+        $socket = @stream_socket_client('tcp://' . CHR_HOST . ':' . CHR_SSH_PORT, $errno, $errstr, min($left, 5.0));
+        if ($socket !== false) {
+            break;
+        }
+        usleep(250000);
+    }
     if ($socket === false) {
         fwrite(STDERR, "not ready: connect failed: $errstr ($errno)\n");
         exit(1);
     }
-    stream_set_timeout($socket, 5);
-    // RFC 4253 allows other lines before the identification string.
-    for ($i = 0; $i < 10; $i++) {
+    while (($left = $deadline - microtime(true)) > 0) {
+        stream_set_timeout($socket, (int) $left, (int) (fmod($left, 1.0) * 1e6));
         $line = fgets($socket, 512);
         if ($line === false) {
             $meta = stream_get_meta_data($socket);
             fclose($socket);
-            fwrite(STDERR, 'not ready: ' . ($meta['timed_out'] ? 'no banner within 5s' : 'connection closed without a banner') . "\n");
+            fwrite(STDERR, 'not ready: ' . ($meta['timed_out'] ? "no banner within {$timeout}s" : 'connection closed without a banner') . "\n");
             exit(1);
         }
         if (str_starts_with($line, 'SSH-')) {
@@ -41,8 +52,45 @@ if (in_array('--ssh-banner', array_slice($argv, 1), true)) {
         }
     }
     fclose($socket);
-    fwrite(STDERR, "not ready: no SSH- line in the first 10 lines\n");
+    fwrite(STDERR, "not ready: no SSH- line received within {$timeout}s\n");
     exit(1);
+}
+
+if (in_array('--ssh-login', array_slice($argv, 1), true)) {
+    if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
+        require_once __DIR__ . '/../../vendor/autoload.php';
+    }
+    if (!class_exists(\phpseclib3\Net\SSH2::class)) {
+        // Skipped only where the repository does not depend on SSH (mikrotik-api); elsewhere it is a broken install.
+        $composer = json_decode((string) @file_get_contents(__DIR__ . '/../../composer.json'), true);
+        if (!is_array($composer)) {
+            fwrite(STDERR, "ERROR: --ssh-login: phpseclib is not installed and composer.json of the repository is unreadable\n");
+            exit(1);
+        }
+        if (isset($composer['require']['phpseclib/phpseclib'])) {
+            fwrite(STDERR, "ERROR: --ssh-login: composer.json requires phpseclib/phpseclib but it is not installed\n");
+            exit(1);
+        }
+        $repository = basename((string) ($composer['name'] ?? 'this repository'));
+        echo "ssh login skipped (phpseclib not installed - $repository has no SSH)\n";
+        exit(0);
+    }
+    $timeout = (float) chr_env('CHR_BOOT_TIMEOUT', '300');
+    $password = chr_env('CHR_PASSWORD');
+    $ssh = new \phpseclib3\Net\SSH2(CHR_HOST, CHR_SSH_PORT, $timeout);
+    $ssh->setTimeout($timeout);
+    if (!$ssh->login('admin', $password)) {
+        fwrite(STDERR, "ERROR: --ssh-login: login as admin failed\n");
+        exit(1);
+    }
+    $out = $ssh->exec(':put [/system resource get version]');
+    $ssh->disconnect();
+    if (!is_string($out) || trim($out) === '') {
+        fwrite(STDERR, "ERROR: --ssh-login: exec ':put [/system resource get version]' returned no output\n");
+        exit(1);
+    }
+    echo 'ssh login OK: ' . trim($out) . "\n";
+    exit(0);
 }
 
 if ($loginOnly) {

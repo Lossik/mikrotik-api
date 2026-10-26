@@ -121,7 +121,20 @@ try {
 
     $apiSsl = findByName($api, '/ip/service', 'api-ssl') ?? fail('service api-ssl not found');
     if (($apiSsl['certificate'] ?? '') !== 'test') {
-        must($api, '/ip/service/set', ['=.id=' . $apiSsl['.id'], '=certificate=test']);
+        $deadline = microtime(true) + 15.0;
+        $lastTrap = null;
+        while (microtime(true) < $deadline) {
+            $reply = $api->call('/ip/service/set', ['=.id=' . $apiSsl['.id'], '=certificate=test']);
+            if ($reply['trap'] === null) {
+                $lastTrap = null;
+                break;
+            }
+            $lastTrap = $reply['trap'];
+            usleep(500000);
+        }
+        if ($lastTrap !== null) {
+            fail("/ip/service/set certificate=test: $lastTrap");
+        }
         step('api-ssl certificate set to test');
     } else {
         step('api-ssl already uses certificate test');

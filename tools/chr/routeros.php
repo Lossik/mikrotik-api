@@ -73,7 +73,20 @@ final class ChrApi
      */
     public function login(string $user, string $password, float $timeout = 30.0): ?string
     {
-        return $this->call('/login', ["=name=$user", "=password=$password"], $timeout)['trap'];
+        $first = $this->call('/login', ["=name=$user", "=password=$password"], $timeout);
+        if ($first['trap'] !== null) {
+            return $first['trap'];
+        }
+        $ret = $first['done']['ret'] ?? null;
+        if ($ret === null) {
+            return null;
+        }
+        if (strlen($ret) !== 32 || !ctype_xdigit($ret)) {
+            throw new RuntimeException("login challenge is not 32 hex digits: $ret");
+        }
+        $response = '00' . md5("\0" . $password . hex2bin($ret));
+
+        return $this->call('/login', ["=name=$user", "=response=$response"], $timeout)['trap'];
     }
 
     /**
@@ -206,4 +219,4 @@ function chr_env(string $name, ?string $default = null): string
 
 const CHR_HOST = '127.0.0.1';
 const CHR_API_PORT = 18728;
-const CHR_SSH_PORT = 18722;
+define('CHR_SSH_PORT', (int) chr_env('CHR_SSH_PORT', '18722'));

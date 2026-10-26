@@ -20,6 +20,8 @@
     <groups>
         <exclude>
             <group>live</group>
+            <group>live-json</group>
+            <group>live-text</group>
             <group>docker</group>
         </exclude>
     </groups>

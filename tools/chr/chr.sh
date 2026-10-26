@@ -9,7 +9,8 @@
 #   bash tools/chr/chr.sh status    print "running" or "not running"
 #
 # Environment: CHR_VERSION (default 7.24.5), CHR_CACHE (default $HOME/.cache/lossik-chr),
-# CHR_BOOT_TIMEOUT (seconds from 'start', default 300; shared by 'wait' and 'wait-ssh'), CHR_RUN_DIR (default /tmp/lossik-chr),
+# CHR_BOOT_TIMEOUT (seconds, default 300: 'wait' counts from 'start', 'wait-ssh' waits that long on one connection),
+# CHR_RUN_DIR (default /tmp/lossik-chr),
 # CHR_PUBLISH=1 (debug only: forward ports on 0.0.0.0 instead of 127.0.0.1).
 #
 # Forwarded ports (container loopback): 18728 -> API 8728, 18729 -> API-SSL 8729, 18722 -> SSH 22.
@@ -76,16 +77,25 @@ expected_sha() {
 	awk -v v="$CHR_VERSION" '$1 == v { print $3; exit }' "$DIR/versions.txt"
 }
 
+row_install() {
+	awk -v v="$CHR_VERSION" '$1 == v { print $5; exit }' "$DIR/versions.txt"
+}
+
 cmd_start() {
-	local sha zip actual t0 image_dir image accel bind
+	local sha install zip actual t0 image_dir image accel bind
 	if pid=$(running_pid); then
 		die "CHR is already running (pid $pid); run 'chr.sh stop' first"
 	fi
 
 	sha=$(expected_sha)
 	[ -n "$sha" ] || die "version $CHR_VERSION is not listed in $DIR/versions.txt"
-	command -v qemu-system-x86_64 >/dev/null || die "qemu-system-x86_64 not found; run 'chr.sh install' first"
-	command -v unzip >/dev/null || die "unzip not found; run 'chr.sh install' first"
+	install=$(row_install)
+	case "$install" in
+		upgrade:*)
+			die "version $CHR_VERSION has install=$install: there is no image to boot; start the base image" \
+				"${install#upgrade:} (its own row) - 'CHR_VERSION=$CHR_VERSION bash tools/chr/run-live.sh' does the upgrade"
+			;;
+	esac
 
 	mkdir -p "$CHR_CACHE" "$CHR_RUN_DIR"
 	zip="$CHR_CACHE/chr-$CHR_VERSION.img.zip"
@@ -109,6 +119,9 @@ cmd_start() {
 	actual=$(sha256sum "$zip" | awk '{print $1}')
 	[ "$actual" = "$sha" ] || die "SHA256 mismatch for cached $zip: expected $sha, got $actual (delete the file to download it again)"
 	log "SHA256 OK ($sha)"
+
+	command -v qemu-system-x86_64 >/dev/null || die "qemu-system-x86_64 not found; run 'chr.sh install' first"
+	command -v unzip >/dev/null || die "unzip not found; run 'chr.sh install' first"
 
 	t0=$(date +%s)
 	rm -rf "$CHR_RUN_DIR/image"
@@ -173,24 +186,16 @@ cmd_wait() {
 # A fresh CHR answers the API before its SSH service sends a banner (host keys are generated after boot), and the
 # QEMU port forward accepts TCP connections either way, so readiness is the "SSH-" identification line itself.
 cmd_wait_ssh() {
-	local t0 deadline attempt out pid
+	local t0 out pid
 	t0=$(date +%s)
-	deadline=$(boot_deadline)
-	attempt=0
-	while :; do
-		attempt=$(( attempt + 1 ))
-		pid=$(running_pid) || { serial_tail; die "QEMU is not running"; }
-		if out=$(php "$DIR/smoke.php" --ssh-banner 2>&1); then
-			log "SSH sent its banner after $(( $(date +%s) - t0 ))s of waiting (attempt $attempt): $out"
-			return
-		fi
-		if [ "$(date +%s)" -ge "$deadline" ]; then
-			echo "chr.sh: last attempt: $out" >&2
-			serial_tail
-			die "no SSH banner within ${CHR_BOOT_TIMEOUT}s of start"
-		fi
-		sleep 2
-	done
+	pid=$(running_pid) || { serial_tail; die "QEMU is not running"; }
+	if out=$(php "$DIR/smoke.php" --ssh-banner 2>&1); then
+		log "SSH sent its banner after $(( $(date +%s) - t0 ))s of waiting: $out"
+		return
+	fi
+	echo "chr.sh: $out" >&2
+	serial_tail
+	die "no SSH banner within ${CHR_BOOT_TIMEOUT}s of waiting on one connection"
 }
 
 cmd_stop() {
