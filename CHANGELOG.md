@@ -95,8 +95,8 @@ The known issues of 2.x:
   peer that sends one byte at a time is never cut off; `less()`/`greater()` with an IPv4 address compare as text on
   RouterOS 6.42.12 … 7.25rc3 (the console, and so `lossik/mikrotik-ssh`, as addresses); `has()` is the existence of
   a property, also with an empty value (`lossik/mikrotik-ssh`: a non-empty value). See the README.
-- When the router reboots under a running `listen`, the call ends normally, with `ConnectionException` or, rarely,
-  with `TimeoutException`; it does not hang, and the next call on the transport throws `ConnectionException`.
+- When the router reboots under a running `listen`, the call ends normally or with `ConnectionException` (measured on 7.24.5), or with
+  `TimeoutException` at `idleTimeout` if the router goes silent; it does not hang, and the next call on the transport throws `ConnectionException`.
 
 ## [2.1.1] - 2026-10-22
 

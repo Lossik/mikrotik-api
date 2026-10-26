@@ -46,8 +46,8 @@ hand, 6.43 accepted the MD5 answer too); 5.26 and 6.33 by hand. From 6.45.9
 - **Verified on CHR only**, not on hardware: menus a CHR does not have (`ether` settings of real ports, wireless,
   switch chips) are not covered.
 - The live suite covers TLS (`fingerprint()`, a foreign fingerprint, `unverified()`), `listen` with `/cancel`, `/quit`,
-  the idle timeout and a reboot under `listen`; those tests pass on every version of the matrix, 6.34 included (for
-  one difference in the rows of `listen` on 6.x see [Streaming](#streaming)).
+  the idle timeout and a reboot under `listen`; those tests pass on every version of the matrix, 6.34 included (the
+  reboot test checks that the router really went away; for one difference in the rows of `listen` on 6.x see [Streaming](#streaming)).
 
 ## Installation
 
@@ -297,8 +297,9 @@ $version = $client->version();   // the connection works after the cancel
   you expect, and reconnect on `TimeoutException`; a healthy but silent stream ends that way too.
 - **`cancelTimeout`** (10 s) bounds how long the router may take to finish a cancelled command; after that
   `TimeoutException` (`->limit === 'cancelTimeout'`) and the transport is closed.
-- **A rebooting router** ends `listen` in no fixed way (measured: it returns normally after `!done`, or throws
-  `ConnectionException`, or, rarely, `TimeoutException`). What holds in every case: with an `idleTimeout`, `listen`
+- **A rebooting router** ends `listen` in no fixed way (measured on 7.24.5: it returns normally after `!done`,
+  or throws `ConnectionException`; a router that goes silent instead ends it with `TimeoutException` at
+  `idleTimeout`). What holds in every case: with an `idleTimeout`, `listen`
   ends within it; it does not hang; and the next call on that transport throws `ConnectionException`.
 - While `listen` runs, **no other command may use that transport**, including one issued from the callback; open a
   second connection for that.
