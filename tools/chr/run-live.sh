@@ -199,8 +199,7 @@ verify_npk() {
 		local download_url="https://download.mikrotik.com/routeros/$target"
 		echo "run-live.sh: downloading $download_url/routeros-x86-$target.npk"
 		rm -f "$npk_file.part"
-		curl -fsSL --retry 3 -o "$npk_file.part" "$download_url/routeros-x86-$target.npk" \
-			|| { rm -f "$npk_file.part"; die "download of routeros-x86-$target.npk failed"; }
+		bash "$DIR/download.sh" "$download_url/routeros-x86-$target.npk" "$npk_file.part"
 		actual=$(sha256sum "$npk_file.part" | awk '{print $1}')
 		if [ "$actual" != "$sha" ]; then
 			rm -f "$npk_file.part"
@@ -216,6 +215,15 @@ main() {
 	[ -n "${CHR_VERSION:-}" ] || die "CHR_VERSION is not set: name the RouterOS version to test (a row of versions.txt)"
 	export CHR_VERSION
 	export CHR_CACHE="${CHR_CACHE:-$HOME/.cache/lossik-chr}"
+	if ! awk -v v="$CHR_VERSION" '$1 == v { found=1 } END { exit !found }' "$VERSIONS_FILE"; then
+		[[ "$CHR_VERSION" =~ ^7\.[0-9]+(\.[0-9]+)?((rc|beta)[0-9]+)?$ ]] || die "invalid unpinned version"
+		[[ "${CHR_OFFICIAL_SHA256:-}" =~ ^[a-f0-9]{64}$ ]] || die "unpinned version requires CHR_OFFICIAL_SHA256"
+		VERSIONS_FILE=$(mktemp)
+		local ssh_path
+		ssh_path=$(php -r 'echo version_compare($argv[1], "7.17", ">=") ? "json" : "text";' "$CHR_VERSION")
+		printf '%s stable %s %s image official\n' "$CHR_VERSION" "$CHR_OFFICIAL_SHA256" "$ssh_path" >"$VERSIONS_FILE"
+		export CHR_TEMP_VERSIONS="$VERSIONS_FILE"
+	fi
 	plan_live_run "$CHR_VERSION" "$VERSIONS_FILE"
 
 	CHR_STARTED=0
@@ -232,6 +240,7 @@ main() {
 			step "stop"
 			CHR_VERSION="$BOOTED_VERSION" bash "$DIR/chr.sh" stop || true
 		fi
+		[ -z "${CHR_TEMP_VERSIONS:-}" ] || rm -f "$CHR_TEMP_VERSIONS"
 		echo "=== total $(( $(date +%s) - T_START ))s, exit $rc"
 		exit "$rc"
 	}

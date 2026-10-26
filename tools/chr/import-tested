@@ -1,0 +1,25 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/tested.php';
+
+try {
+    if (count($argv) < 2 || count($argv) > 3) {
+        throw new RuntimeException('Usage: php tools/chr/import-tested tested.jsonl [versions.txt]');
+    }
+    $target = $argv[2] ?? __DIR__ . '/versions.txt';
+    $before = file_get_contents($target);
+    if ($before === false) {
+        throw new RuntimeException('Cannot read versions file');
+    }
+    $after = importTested($before, testedRecords($argv[1]), readChannelHeads(dirname($argv[1]) . '/channel-heads.json'));
+    if ($before !== $after && file_put_contents($target, $after) !== strlen($after)) {
+        throw new RuntimeException('Cannot write versions file');
+    }
+    echo $before === $after ? "Already imported\n" : "Updated versions file\n";
+} catch (Throwable $e) {
+    fwrite(STDERR, $e->getMessage() . "\n");
+    exit(1);
+}
