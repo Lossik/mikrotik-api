@@ -1,0 +1,19 @@
+# <version> <channel> <sha256> <ssh-path> <install> <sha-source>
+# Rows are checked against official .sha256 where available (sha-source=official) or computed locally (computed).
+# install=upgrade:<base>: boot the image of the <base> row, upgrade it with routeros-x86-<version>.npk (sha256 = NPK);
+# needs sha-source=official and a <base> row with install=image.
+# Lines starting with '#' and a trailing '# ...' on a row are comments; any other extra column is an error.
+# 7.25rc3 is moved by hand with every new release candidate.
+7.25rc3  testing    341bfc0a264b54b521e7b43da607d017787049b88f71dd8d58bd9b464fc65630  json  image            official
+7.24.5   stable     16f07222a3213352c9c4fbea4f4dec6a8ffb78fdc0fa5e398c23103ed357c6eb  json  image            official
+7.23.8   long-term  ac01ec7c092f4cab8136212e8ebfd613e0a37844c406317fa228d1ad446ce62c  json  image            official
+7.17.2   stable     a5b8a4d7c694c548a50f76c389224f224b7cda9432c1af95c1e24525e555b34b  json  image            official
+7.16.2   stable     32d8066f05855fb70de6e8b6a591bcc28d94b2342beca4bca06fcd967821f860  text  image            official
+7.12.2   stable     341a7981a5c49867c8efdee48cd191fd6dab3292db6544f0482ed543f5b794a7  text  image            computed
+7.1      testing    093662e40e6ba6646c3d3d09ad8f99306b5638f0b4964044bc9a4fe9f5317905  text  image            computed
+6.49.23  stable     c1b2c5d0a2106cf082605d0595fc84ca589aa1da2f46aae5f97f595d42da7f8b  text  upgrade:6.49.20  official  # Q11 (d1): fresh 6.49.21+ images lose their configuration in QEMU
+6.49.20  long-term  a954ab0002a83de5e4c02110f560d0bf622e7d21916088aaacda6baaba88cf4a  text  image            official
+6.49.18  long-term  35564cf6316db0dc0ba5313d31bca3359675d32a9058e85655f91524b22f3d53  text  image            official
+6.43     stable     91769245a566e1e984d5748ddb92c58f6553c7020a8bacdb52321cd51a55db94  text  image            computed
+6.42.12  long-term  14a93b5aeb855ae4db9c1a8784f4cf8cff5a77d5b85e795b0741b6f3d65b8124  text  image            computed
+6.34     stable     160c10ed743f89f623ee9fdf1ffd1674764a4f4a337aaedf64282edc6a04d69c  text  image            computed
