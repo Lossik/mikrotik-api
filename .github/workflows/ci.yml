@@ -4,11 +4,6 @@ on:
   push:
   pull_request:
 
-# Until lossik/device-communication 3.0.0 is released, tools/ci.sh clones its branch DC_REF (step 3).
-env:
-  DC_REF: ci/3.0
-  DC_URL: https://github.com/Lossik/device-communication.git
-
 jobs:
   unit:
     runs-on: ubuntu-latest
