@@ -28,8 +28,8 @@ use Lossik\Mikrotik\Api\Protocol\WordCodec;
  * as TrapException only after `!done`, so the connection stays usable. Any ConnectionException (EOF, a time limit,
  * `!fatal`, a protocol error) closes the transport; every further call then throws ConnectionException without I/O.
  * stream() delivers the rows of a long-running command (`listen`) as they arrive and cancels it with `/cancel`.
- * Both logins are supported: the post-6.43 one, and the legacy MD5 challenge login of older RouterOS (implemented
- * by the documented scheme and tested against the fake router only; not yet run against a real RouterOS before 6.43).
+ * Both logins are supported: the post-6.43 one, and the legacy MD5 challenge login of older RouterOS (by the
+ * documented scheme; the live suite runs it on RouterOS 6.34 and 6.42.12).
  */
 final class ApiTransport implements StreamingTransport
 {
@@ -427,7 +427,7 @@ final class ApiTransport implements StreamingTransport
     /**
      * The one place that decides whether a reply belongs to the command: its `.tag` must be the command's tag.
      * `!fatal` is taken whatever its tag (the device closes the connection after it). A missing tag counts as a
-     * foreign one. Measured on CHR 7.24.5 and 7.23.8: every reply carries the tag except `!fatal`.
+     * foreign one. Every reply carries the tag except `!fatal`: the live suite passes on CHR 6.34 … 7.25rc3.
      *
      * @throws ProtocolException
      */
