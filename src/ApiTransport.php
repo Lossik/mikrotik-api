@@ -205,7 +205,7 @@ final class ApiTransport implements StreamingTransport
             if ($challenge === null) {
                 return;
             }
-            if (preg_match('/^[0-9a-f]{32}$/i', $challenge) !== 1) {
+            if (preg_match('/^[0-9a-f]{32}\z/i', $challenge) !== 1) {
                 throw new ProtocolException('The login challenge of the device is not 32 hexadecimal digits');
             }
             // the digest covers the password as the router receives it, i.e. after the charset conversion

@@ -248,6 +248,7 @@ final class ApiTransportTest extends TestCase
         yield '31 hex digits' => ['0123456789abcdeffedcba987654321'];
         yield '33 hex digits' => ['0123456789abcdeffedcba98765432100'];
         yield '32 characters, not all hex' => ['0123456789abcdeffedcba987654321g'];
+        yield '32 hex digits followed by LF' => ["0123456789abcdeffedcba9876543210\n"];
     }
 
     #[DataProvider('malformedChallenges')]
