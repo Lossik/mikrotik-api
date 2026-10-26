@@ -232,7 +232,7 @@ foreach ($packages as $package) {
         $ipv6Disabled = ($disabled === 'true');
     }
 }
-// Report only: whether the ipv6 package is enabled is decided outside the harness.
+// Report only: provision.php, run after the upgrade, enables (and reboots) when the upgrade left ipv6 disabled.
 echo 'upgrade: NOTE: package ipv6 is ' . match ($ipv6Disabled) {
     true => 'disabled',
     false => 'enabled',

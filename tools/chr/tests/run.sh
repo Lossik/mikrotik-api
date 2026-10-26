@@ -1,5 +1,5 @@
 #!/bin/bash
-# Harness tests without a router: OH1-OH5 of plan §7.4, OH6 (smoke.php --ssh-login) and OH7 (upgrade.php).
+# Harness tests without a router: OH1-OH5 of plan §7.4, OH6 (smoke.php --ssh-login), OH7 (upgrade.php) and OH8 (ipv6 package in provision.php).
 # Called as the first line of the chr job script in CI.
 set -euo pipefail
 
@@ -164,7 +164,7 @@ install | bash "$DIR/chr.sh" install
 verify NPK routeros-x86-6.49.23.npk | verify_npk 6.49.23 "$CHR_CACHE" "$VERSIONS_FILE"
 start base image 6.49.20 | CHR_VERSION=6.49.20 bash "$DIR/chr.sh" start
 wait for /login (base 6.49.20) | CHR_VERSION=6.49.20 bash "$DIR/chr.sh" wait
-provision (base 6.49.20) | php "$DIR/provision.php"
+provision (base 6.49.20) | php "$DIR/provision.php" --defer-reboot
 wait for SSH banner (base 6.49.20) | bash "$DIR/chr.sh" wait-ssh
 upgrade 6.49.20 to 6.49.23 by NPK routeros-x86-6.49.23.npk | php "$DIR/upgrade.php" 6.49.23 "$CHR_CACHE/routeros-x86-6.49.23.npk"
 provision (upgraded 6.49.23) | php "$DIR/provision.php"
@@ -186,7 +186,7 @@ bash $DIR/chr.sh start [CHR_VERSION=6.49.20]
 step: wait for /login (base 6.49.20)
 bash $DIR/chr.sh wait [CHR_VERSION=6.49.20]
 step: provision (base 6.49.20)
-php $DIR/provision.php
+php $DIR/provision.php --defer-reboot
 step: wait for SSH banner (base 6.49.20)
 bash $DIR/chr.sh wait-ssh [CHR_VERSION=6.49.23]
 step: upgrade 6.49.20 to 6.49.23 by NPK routeros-x86-6.49.23.npk
@@ -313,8 +313,13 @@ test_oh7() {
 	php "$TESTS_DIR/upgrade.php"
 }
 
+test_oh8() {
+	echo "--- OH8: provision.php enables a disabled ipv6 package (reboot unless deferred), leaves it alone otherwise ---"
+	php "$TESTS_DIR/oh8.php"
+}
+
 main() {
-	echo "=== Running harness tests OH1-OH7 ==="
+	echo "=== Running harness tests OH1-OH8 ==="
 	test_oh1
 	test_oh2
 	test_oh3
@@ -322,7 +327,8 @@ main() {
 	test_oh5
 	test_oh6
 	test_oh7
-	echo "=== All harness tests OH1-OH7 PASSED ==="
+	test_oh8
+	echo "=== All harness tests OH1-OH8 PASSED ==="
 }
 
 main "$@"

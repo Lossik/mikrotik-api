@@ -8,14 +8,17 @@ use Lossik\DeviceCommunication\Menu;
 use Lossik\DeviceCommunication\Query;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\Attributes\Medium;
+use PHPUnit\Framework\Attributes\Large;
 
 /**
  * Client and Menu over ApiTransport against a real RouterOS: update and delete of several items (plan L4), the
  * answers behind U5 (L10) and the menus the first consumer uses (L14).
+ *
+ * Large, not Medium: after the binding cycle of /ipv6/dhcp-server/binding, RouterOS 7.12.2 kept its DHCP menus
+ * blocked for about 20 s, also for an independent client.
  */
 #[Group('live')]
-#[Medium]
+#[Large]
 final class MenuLiveTest extends LiveTestCase
 {
     private const ID_PATTERN = '/^\*[0-9A-F]+$/';
@@ -25,9 +28,11 @@ final class MenuLiveTest extends LiveTestCase
     /**
      * The attributes `add` needs on each menu, as RouterOS itself demands them (its `!trap` "missing =parent=" and
      * the like, measured on CHR 7.24.5); `comment` is added by the test. All of them come back from `print`
-     * verbatim.
+     * verbatim. The third element lists the items RouterOS demands to exist first (created raw, with the tag): a
+     * binding on RouterOS 6.x needs its `prefix-pool` ("failure: Missing pool!"; this pool and binding were accepted
+     * by 6.34, see probe fd-binding2.php of the F-D task).
      *
-     * @return iterable<string, array{string, array<string, string>}>
+     * @return iterable<string, array{0: string, 1: array<string, string>, 2?: list<array{string, list<string>}>}>
      */
     public static function menus(): iterable
     {
@@ -52,7 +57,8 @@ final class MenuLiveTest extends LiveTestCase
         ];
         yield '/ipv6/dhcp-server/binding' => [
             '/ipv6/dhcp-server/binding',
-            ['address' => '2001:db8::1/128', 'duid' => '0x0001', 'iaid' => '1'],
+            ['address' => '2001:db8:1::1/128', 'duid' => '0x0001', 'iaid' => '1', 'prefix-pool' => 'lossik-live-pool'],
+            [['/ipv6/pool/add', ['=name=lossik-live-pool', '=prefix=2001:db8:1::/120', '=prefix-length=128']]],
         ];
         yield '/ipv6/firewall/address-list' => [
             '/ipv6/firewall/address-list',
@@ -64,10 +70,16 @@ final class MenuLiveTest extends LiveTestCase
      * L14: the cycle of the first consumer on each menu it uses.
      *
      * @param array<string, string> $attributes
+     * @param list<array{string, list<string>}> $requires
      */
     #[DataProvider('menus')]
-    public function testAddPrintUpdateDeleteOnTheMenu(string $path, array $attributes): void
+    public function testAddPrintUpdateDeleteOnTheMenu(string $path, array $attributes, array $requires = []): void
     {
+        $raw = $this->raw();
+        foreach ($requires as [$command, $words]) {
+            $raw->rows($command, [...$words, '=comment=' . self::TAG]);
+        }
+        $raw->close();
         $menu = $this->client()->menu($path);
         $mine = Query::where('comment', self::TAG);
 

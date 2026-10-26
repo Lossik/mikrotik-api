@@ -46,8 +46,11 @@ final class TlsLiveTest extends LiveTestCase
         self::assertNotNull($this->tlsClient(TlsOptions::unverified())->version());
 
         $raw = $this->raw();
-        $service = $raw->rows('/ip/service/print', ['?name=api-ssl', '?dynamic=false', '=.proplist=.id,certificate'])[0]
-            ?? [];
+        // the static row; RouterOS 6.34, 6.49.18 and 7.12.2 send no `dynamic` in /ip/service, so `?dynamic=false`
+        // matches nothing there and a missing `dynamic` counts as static
+        $rows = $raw->rows('/ip/service/print', ['?name=api-ssl', '=.proplist=.id,certificate,dynamic']);
+        $static = array_filter($rows, static fn (array $row): bool => ($row['dynamic'] ?? 'false') === 'false');
+        $service = array_values($static)[0] ?? [];
         $certificate = $service['certificate'] ?? '';
         self::assertSame('test', $certificate);
 

@@ -7,7 +7,8 @@
 #   bash tools/chr/run-live.sh   (from the repository root)
 #
 # Environment: CHR_VERSION, CHR_CACHE, CHR_BOOT_TIMEOUT (see chr.sh); CHR_PASSWORD (admin password to set,
-# default: random per run), CHR_LIVE_TIMEOUT (timeout for the phpunit live phase; default by ssh-path).
+# default: random per run), CHR_LIVE_TIMEOUT (timeout for the phpunit live phase; default by ssh-path),
+# CHR_REBOOT_TIMEOUT (provision.php: wait for the router after the reboot that enables the ipv6 package; default 600).
 #
 # main() runs exactly the steps plan_live_run() plans (execute_plan); print_plan prints the same steps, and the
 # harness tests (tests/run.sh, OH5) compare that output and an execution trace with goldens.
@@ -140,7 +141,8 @@ plan_live_run() {
 		plan_step "verify NPK $npk" "verify_npk $target \"\$CHR_CACHE\" \"\$VERSIONS_FILE\""
 		plan_step "start base image $ROW_BASE" "CHR_VERSION=$ROW_BASE bash \"\$DIR/chr.sh\" start"
 		plan_step "wait for /login (base $ROW_BASE)" "CHR_VERSION=$ROW_BASE bash \"\$DIR/chr.sh\" wait"
-		plan_step "provision (base $ROW_BASE)" 'php "$DIR/provision.php"'
+		# --defer-reboot: the ipv6 package is enabled on the base image and the upgrade reboot applies it (one reboot)
+		plan_step "provision (base $ROW_BASE)" 'php "$DIR/provision.php" --defer-reboot'
 		plan_step "wait for SSH banner (base $ROW_BASE)" 'bash "$DIR/chr.sh" wait-ssh'
 		plan_step "upgrade $ROW_BASE to $target by NPK $npk" "php \"\$DIR/upgrade.php\" $target \"\$CHR_CACHE/$npk\""
 		plan_step "provision (upgraded $target)" 'php "$DIR/provision.php"'

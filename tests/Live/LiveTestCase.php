@@ -23,7 +23,7 @@ abstract class LiveTestCase extends TestCase
     /** The comment of everything the live tests create on the router. */
     protected const TAG = 'lossik-live-test';
 
-    /** The menus in which the tests create items. */
+    /** The menus in which the tests create items; an item before the one it depends on (a binding before its pool). */
     private const TAGGED_MENUS = [
         '/ip/firewall/address-list',
         '/ipv6/firewall/address-list',
@@ -37,6 +37,7 @@ abstract class LiveTestCase extends TestCase
         '/ppp/secret',
         '/ip/dhcp-server/lease',
         '/ipv6/dhcp-server/binding',
+        '/ipv6/pool',
         '/system/script',
         '/interface/bridge',
     ];

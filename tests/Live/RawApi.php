@@ -37,6 +37,12 @@ final class RawApi
         }
         $api = new self($socket);
         $reply = $api->call('/login', ['=name=' . $env->user, '=password=' . $env->password]);
+        // RouterOS before 6.43 answers the plain login with `!done =ret=<challenge>` and no session: MD5 response
+        $challenge = self::attributes($reply[0] ?? [])['ret'] ?? null;
+        if ($challenge !== null && self::type($reply[0] ?? []) === '!done') {
+            $response = '00' . md5("\0" . $env->password . (string) hex2bin($challenge));
+            $reply = $api->call('/login', ['=name=' . $env->user, '=response=' . $response]);
+        }
         if (self::type($reply[0] ?? []) !== '!done') {
             throw new \RuntimeException('Raw login failed: ' . json_encode($reply));
         }

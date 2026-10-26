@@ -39,13 +39,16 @@ final class SessionLiveTest extends LiveTestCase
     }
 
     /**
-     * FAQ-3 / U20 in raw sentences: what the router tags, for each reply type the library reads. `!fatal` is not
-     * among them on purpose: the router sends it without a tag (see StreamLiveTest::testQuit...).
+     * FAQ-3 / U20 in raw sentences: every sentence of every command carries the tag of its command, up to and
+     * including the `!done` that ends it (the reading stops at the first `!done`, a missing one runs into the
+     * timeout), and the unknown command is answered with a `!trap` (plan-stare-ros §5.1). Which other reply types
+     * come is the router's business: RouterOS 6.x never sends `!empty`. `!fatal` is not read here on purpose: the
+     * router sends it without a tag (see StreamLiveTest::testQuit...).
      */
     public function testEveryReplySentenceCarriesTheTagOfItsCommand(): void
     {
         $raw = $this->raw();
-        $tagged = [];
+        $untagged = [];
         $types = [];
         $commands = [
             ['/system/resource/print', ['=.proplist=version']],
@@ -57,15 +60,16 @@ final class SessionLiveTest extends LiveTestCase
             $tag = $raw->send($command, $words);
             do {
                 $sentence = $raw->readSentence(microtime(true) + 10.0);
-                $types[] = RawApi::type($sentence);
-                $tagged[] = [RawApi::type($sentence), RawApi::tagOf($sentence) === $tag];
+                $types[$command][] = RawApi::type($sentence);
+                if (RawApi::tagOf($sentence) !== $tag) {
+                    $untagged[] = $command . ' ' . json_encode($sentence);
+                }
             } while (RawApi::type($sentence) !== '!done');
         }
         $raw->close();
 
-        // the commands exercised every reply type, and none of the sentences lacked or changed the tag
-        self::assertEqualsCanonicalizing(['!re', '!empty', '!trap', '!done'], array_values(array_unique($types)));
-        self::assertSame([], array_values(array_filter($tagged, static fn (array $s): bool => !$s[1])));
+        self::assertSame([], $untagged);
+        self::assertContains('!trap', $types['/lossik-live-none'] ?? []);
     }
 
     /**

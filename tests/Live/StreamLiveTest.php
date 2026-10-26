@@ -17,11 +17,14 @@ use PHPUnit\Framework\Attributes\Medium;
 #[Medium]
 final class StreamLiveTest extends LiveTestCase
 {
+    /** An interface that exists before `listen` starts (the test creates it: RouterOS 6.x has no `lo`). */
+    private const EXISTING = 'lossik-live-listen';
+
     /**
-     * A background job of the router (`/execute`) that changes the comment of the `lo` interface, adds a bridge and
-     * removes it again, with a pause before each step so that `listen` is already running.
+     * A background job of the router (`/execute`) that disables the existing interface, adds a bridge and removes it
+     * again, with a pause before each step so that `listen` is already running.
      */
-    private const CHANGES = ':delay 2s; /interface set [find name=lo] comment=lossik-live-event; :delay 1s; '
+    private const CHANGES = ':delay 2s; /interface set [find name=' . self::EXISTING . '] disabled=yes; :delay 1s; '
         . '/interface bridge add name=lossik-live-bridge comment=lossik-live-test; :delay 1s; '
         . '/interface bridge remove [find name=lossik-live-bridge]';
 
@@ -32,7 +35,7 @@ final class StreamLiveTest extends LiveTestCase
     public function testListenDeliversChangesAndCancelKeepsTheConnectionUsable(): void
     {
         $raw = $this->raw();
-        $loop = $raw->rows('/interface/print', ['?name=lo', '=.proplist=.id,comment'])[0] ?? [];
+        $raw->rows('/interface/bridge/add', ['=name=' . self::EXISTING, '=comment=' . self::TAG]);
         $client = new Client($this->transport());
         $rows = [];
         $bridgeId = null;
@@ -50,14 +53,17 @@ final class StreamLiveTest extends LiveTestCase
             );
             $version = $client->version();
         } finally {
-            $raw->rows('/interface/set', ['=.id=' . ($loop['.id'] ?? 'lo'), '=comment=' . ($loop['comment'] ?? '')]);
             $raw->close();
         }
 
         self::assertNotNull($bridgeId);
         self::assertContains(['.id' => $bridgeId, '.dead' => 'true'], $rows);
-        $commentChanged = array_filter($rows, static fn (array $row): bool => ($row['name'] ?? null) === 'lo');
-        self::assertSame(['lossik-live-event'], array_column($commentChanged, 'comment'));
+        // the change of the existing interface comes as a whole row (with its name), the last one it gets; the bridge
+        // created just before may still report its start-up first (6.49.18: one row with disabled=false)
+        $changed = array_values(
+            array_filter($rows, static fn (array $row): bool => ($row['name'] ?? null) === self::EXISTING),
+        );
+        self::assertSame('true', ($changed[count($changed) - 1] ?? [])['disabled'] ?? null);
         $last = array_pop($rows);
         self::assertSame($bridgeId, $last['.id'] ?? null);
         self::assertNotNull($version);
