@@ -1,0 +1,4 @@
+# CHR images known to chr.sh: <version> <channel> <sha256 of chr-<version>.img.zip>
+# SHA256 values come from https://download.mikrotik.com/routeros/<version>/chr-<version>.img.zip.sha256
+7.24.5 stable 16f07222a3213352c9c4fbea4f4dec6a8ffb78fdc0fa5e398c23103ed357c6eb
+7.23.8 long-term ac01ec7c092f4cab8136212e8ebfd613e0a37844c406317fa228d1ad446ce62c

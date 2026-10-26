@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - php:8.2.35-cli
+          - php:8.3.36-cli
+          - php:8.4.27-cli
+          - php:8.5.12-cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: tools/ci.sh in ${{ matrix.image }}
+        run: docker run --rm -v "$PWD:/app" -w /app ${{ matrix.image }} bash tools/ci.sh
+
+  lowest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: tools/ci.sh --prefer-lowest in php:8.2.35-cli
+        run: docker run --rm -v "$PWD:/app" -w /app php:8.2.35-cli bash tools/ci.sh --prefer-lowest
+
+  chr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CHR_VERSION: "7.24.5"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Cache CHR image
+        uses: actions/cache@v4
+        with:
+          path: .cache/chr
+          key: chr-${{ env.CHR_VERSION }}
+
+      - name: CHR live run
+        run: |
+          mkdir -p .cache/chr
+          KVM=()
+          if [ -w /dev/kvm ]; then KVM=(--device /dev/kvm); fi
+          docker run --rm -v "$PWD:/app" -v "$PWD/.cache/chr:/cache" -e CHR_CACHE=/cache -e CHR_VERSION \
+            -w /app "${KVM[@]}" php:8.2.35-cli bash tools/chr/run-live.sh

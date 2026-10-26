@@ -1,12 +1,30 @@
 {
 	"name": "lossik/mikrotik-api",
+	"description": "MikroTik RouterOS API client (binary API protocol over TCP, optionally TLS)",
+	"type": "library",
+	"license": "MIT",
 	"autoload": {
 		"psr-4": {
 			"Lossik\\Device\\Mikrotik\\Api\\": "src/"
 		}
 	},
+	"autoload-dev": {
+		"psr-4": {
+			"Lossik\\Device\\Mikrotik\\Api\\Tests\\": "tests/"
+		}
+	},
 	"require": {
-		"lossik/device-communication": "~2.0",
-		"php": ">=7.1"
+		"php": "^8.2",
+		"ext-iconv": "*",
+		"lossik/device-communication": "^2.0.1"
+	},
+	"require-dev": {
+		"phpunit/phpunit": "^11.5"
+	},
+	"suggest": {
+		"ext-openssl": "Needed only for TLS connections (Options::$ssl = true)"
+	},
+	"scripts": {
+		"test": "phpunit"
 	}
 }
