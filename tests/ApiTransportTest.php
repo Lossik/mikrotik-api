@@ -10,6 +10,7 @@ use Lossik\DeviceCommunication\CommunicationException;
 use Lossik\DeviceCommunication\ConnectionException;
 use Lossik\DeviceCommunication\ProtocolException;
 use Lossik\DeviceCommunication\Query;
+use Lossik\DeviceCommunication\TimeoutException;
 use Lossik\DeviceCommunication\TrapException;
 use Lossik\Mikrotik\Api\ApiOptions;
 use Lossik\Mikrotik\Api\ApiTransport;
@@ -179,6 +180,42 @@ final class ApiTransportTest extends TestCase
             self::assertInstanceOf(ConnectionException::class, $e);
         }
         self::assertLessThan(2.0, (hrtime(true) - $started) / 1e9);
+    }
+
+    /**
+     * @return iterable<string, array{?int, float, float, class-string<ConnectionException>}>
+     */
+    public static function connectFailures(): iterable
+    {
+        yield '110 (Linux ETIMEDOUT) before limit' => [110, 0.05, 2.0, TimeoutException::class];
+        yield '60 (Darwin/macOS ETIMEDOUT) before limit' => [60, 0.05, 2.0, TimeoutException::class];
+        yield '10060 (Windows WSAETIMEDOUT) before limit' => [10060, 0.05, 2.0, TimeoutException::class];
+        yield '111 (Linux ECONNREFUSED) after limit' => [111, 2.5, 2.0, ConnectionException::class];
+        yield '61 (Darwin/macOS ECONNREFUSED) after limit' => [61, 2.5, 2.0, ConnectionException::class];
+        yield '10061 (Windows WSAECONNREFUSED) after limit' => [10061, 2.5, 2.0, ConnectionException::class];
+        yield '0 (e.g. TLS handshake stall) at limit' => [0, 2.0, 2.0, TimeoutException::class];
+        yield '0 (e.g. TLS handshake stall) after limit' => [0, 2.5, 2.0, TimeoutException::class];
+        yield '0 (e.g. immediate TLS failure) before limit' => [0, 0.5, 2.0, ConnectionException::class];
+        yield 'null errno after limit' => [null, 2.5, 2.0, TimeoutException::class];
+        yield 'null errno before limit' => [null, 0.5, 2.0, ConnectionException::class];
+    }
+
+    /**
+     * Connect failure classification without network I/O or OS dependencies.
+     *
+     * @param class-string<ConnectionException> $expectedClass
+     */
+    #[DataProvider('connectFailures')]
+    public function testConnectFailureClassification(
+        ?int $errno,
+        float $elapsed,
+        float $connectTimeout,
+        string $expectedClass,
+    ): void {
+        self::assertSame(
+            $expectedClass,
+            ApiTransport::connectExceptionClass($errno, $elapsed, $connectTimeout),
+        );
     }
 
     /**
