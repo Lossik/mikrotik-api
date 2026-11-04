@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 
+- Latest RouterOS workflow: a hosted runner without `/dev/kvm` failed the job with an empty log and opened a
+  "live suite failed" issue for a version that was never tested (2-3 November 2026). The job now says that the runner
+  has no KVM and that the version is retried on the next run; the issue is opened only when the suite itself failed.
 - Live suite: the clean-up after every test (15 menus printed and emptied) ran inside the 10 s limit of `#[Medium]`
   tests, and a router that stalled for a few seconds turned a green suite red (GitLab issue 10, 6.49.20 on GitHub). The
   live classes are `#[Large]` now, and a `RawApi` timeout names the command that stalled.

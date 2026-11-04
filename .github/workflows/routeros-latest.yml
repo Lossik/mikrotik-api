@@ -59,8 +59,16 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-          test -w /dev/kvm
+          if ! test -w /dev/kvm; then
+            # Hosted runners lack /dev/kvm now and then (2-3 Nov 2026, same image as the green runs). Nothing ran,
+            # nothing is recorded, so the version is retried tomorrow; the failed-suite issue is not opened.
+            ls -l /dev/kvm || true
+            echo "CPU virtualization flags: $(grep -c -E 'vmx|svm' /proc/cpuinfo || true)"
+            echo "::error::This runner has no usable /dev/kvm (GitHub infrastructure, not RouterOS $CHR_VERSION): the live suite did not run and the version is retried on the next scheduled run. Nothing to do by hand."
+            exit 1
+          fi
       - name: Verify official SHA256 and run live suite
+        id: live
         run: |
           set -o pipefail
           mkdir -p .cache/chr
@@ -68,7 +76,7 @@ jobs:
             -e CHR_CACHE=/cache -e CHR_VERSION -e CHR_CHANNELS -e CHR_RUN_URL \
             -w /app php:8.2.35-cli bash tools/chr/latest-run.sh 2>&1 | tee .routeros-live.log
       - name: Report failed suite
-        if: failure()
+        if: failure() && steps.live.outcome == 'failure'
         uses: actions/github-script@v7
         with:
           script: |
