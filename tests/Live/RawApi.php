@@ -74,9 +74,10 @@ final class RawApi
                 $sentences[] = $sentence;
             } while (!in_array(self::type($sentence), ['!done', '!fatal'], true));
         } catch (\RuntimeException $e) {
-            // Names the command that stalled: the test's own time limit may hit first (issue #10), and then
-            // the trace shows this frame but not which menu the clean-up was reading.
-            throw new \RuntimeException(sprintf('%s (%s %s)', $e->getMessage(), $command, implode(' ', $words)), 0, $e);
+            // Names the command that stalled: the test's own time limit may hit first (GitLab issue 10), and then
+            // the trace shows this frame but not which menu the clean-up was reading. The command only: the words
+            // of `/login` hold the password, and a failed-suite log ends up in a public GitHub issue.
+            throw new \RuntimeException(sprintf('%s (%s)', $e->getMessage(), $command), 0, $e);
         }
 
         return $sentences;

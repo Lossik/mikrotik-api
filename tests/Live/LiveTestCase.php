@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
  * test in `finally`.
  *
  * The clean-up runs inside the time limit of every test (PHPUnit measures setUp, the test and tearDown together):
- * 15 `print`s plus the removals, on a router that now and then stalls for seconds (issue #10: 6.49.20 on GitHub,
+ * 15 `print`s plus the removals, on a router that now and then stalls for seconds (GitLab issue 10: 6.49.20 on GitHub,
  * `Execution aborted after 10 seconds` in tearDown, the rest of the suite green). The live classes are therefore
  * `#[Large]` (60 s), not `#[Medium]` (10 s); a router that stops answering is still caught by the per-sentence
  * timeout of {@see RawApi}.

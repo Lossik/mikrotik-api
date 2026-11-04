@@ -9,7 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 ### Fixed
 
 - Live suite: the clean-up after every test (15 menus printed and emptied) ran inside the 10 s limit of `#[Medium]`
-  tests, and a router that stalled for a few seconds turned a green suite red (issue #10, 6.49.20 on GitHub). The
+  tests, and a router that stalled for a few seconds turned a green suite red (GitLab issue 10, 6.49.20 on GitHub). The
   live classes are `#[Large]` now, and a `RawApi` timeout names the command that stalled.
 
 ## [3.0.1] - 2026-10-27
