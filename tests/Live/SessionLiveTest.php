@@ -9,7 +9,7 @@ use Lossik\DeviceCommunication\Client;
 use Lossik\DeviceCommunication\Query;
 use Lossik\DeviceCommunication\TrapException;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\Attributes\Medium;
+use PHPUnit\Framework\Attributes\Large;
 
 /**
  * Login, replies and traps of a real RouterOS (plan L1, L3, L5). Every scenario of the live suite also measures U20:
@@ -17,7 +17,7 @@ use PHPUnit\Framework\Attributes\Medium;
  * out of any sentence would turn these tests red.
  */
 #[Group('live')]
-#[Medium]
+#[Large]
 final class SessionLiveTest extends LiveTestCase
 {
     public function testLoginAndVersionReportTheRunningRouterOs(): void

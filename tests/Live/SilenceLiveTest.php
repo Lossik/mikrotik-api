@@ -8,14 +8,14 @@ use Lossik\DeviceCommunication\Client;
 use Lossik\DeviceCommunication\ConnectionException;
 use Lossik\DeviceCommunication\TimeoutException;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\Attributes\Medium;
+use PHPUnit\Framework\Attributes\Large;
 
 /**
  * A router that keeps quiet (plan L11, N1): the only timing scenario that has a real router behind it; the
  * rest (T5 to T10) needs the fake router, which can split writes and fall silent on demand.
  */
 #[Group('live')]
-#[Medium]
+#[Large]
 final class SilenceLiveTest extends LiveTestCase
 {
     public function testCommandThatTakesLongerThanTheIdleTimeoutIsATimeoutAndClosesTheTransport(): void
