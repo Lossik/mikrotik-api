@@ -9,7 +9,7 @@ use Lossik\DeviceCommunication\ConnectionException;
 use Lossik\DeviceCommunication\TimeoutException;
 use Lossik\Mikrotik\Api\TlsOptions;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\Attributes\Medium;
+use PHPUnit\Framework\Attributes\Large;
 
 /**
  * The api-ssl service of a real RouterOS (plan L9, N8): a self-signed certificate verified by its fingerprint, a
@@ -17,7 +17,7 @@ use PHPUnit\Framework\Attributes\Medium;
  * on api-ssl by tools/chr/provision.php.
  */
 #[Group('live')]
-#[Medium]
+#[Large]
 final class TlsLiveTest extends LiveTestCase
 {
     public function testSelfSignedCertificateIsAcceptedByItsFingerprint(): void

@@ -7,14 +7,14 @@ namespace Lossik\Mikrotik\Api\Tests\Live;
 use Lossik\DeviceCommunication\Query;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\Attributes\Medium;
+use PHPUnit\Framework\Attributes\Large;
 
 /**
  * Values that 2.x mangled (plan L2, API half; B1, B2) and the charset (L7, API half; U2, Q-D). The SSH half of both
  * is in lossik/mikrotik-ssh.
  */
 #[Group('live')]
-#[Medium]
+#[Large]
 final class ValuesLiveTest extends LiveTestCase
 {
     private const LIST = 'lossik-live-values';

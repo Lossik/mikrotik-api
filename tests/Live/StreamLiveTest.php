@@ -8,13 +8,13 @@ use Lossik\DeviceCommunication\Client;
 use Lossik\DeviceCommunication\ConnectionException;
 use Lossik\DeviceCommunication\FatalException;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\Attributes\Medium;
+use PHPUnit\Framework\Attributes\Large;
 
 /**
  * `listen` and `/cancel` against a real RouterOS (plan L8; U9, T20), and the router ending a session (`/quit`).
  */
 #[Group('live')]
-#[Medium]
+#[Large]
 final class StreamLiveTest extends LiveTestCase
 {
     /** An interface that exists before `listen` starts (the test creates it: RouterOS 6.x has no `lo`). */
