@@ -7,7 +7,8 @@ declare(strict_types=1);
  *
  *   php tools/chr/smoke.php               log in as admin/$CHR_PASSWORD, run /system/resource/print and check
  *                                         that =version= starts with $CHR_VERSION (default 7.24.5); when $CHR_CHANNEL is
- *                                         set, =version= must be exactly "$CHR_VERSION ($CHR_CHANNEL)"
+ *                                         set, =version= must be exactly "$CHR_VERSION ($CHR_CHANNEL)", or exactly
+ *                                         "$CHR_VERSION" when the build reports no channel (release candidates)
  *   php tools/chr/smoke.php --login-only  readiness probe for chr.sh wait: succeeds on any complete reply
  *                                         to /login (!done or !trap); a bare TCP connect does not count
  *   php tools/chr/smoke.php --ssh-banner  readiness probe for chr.sh wait-ssh: succeeds when the SSH port sends
@@ -133,10 +134,11 @@ if ($reply['trap'] !== null || $reply['re'] === []) {
 $resource = $reply['re'][0];
 $version = $resource['version'] ?? '';
 // RouterOS appends the channel: "7.24.5 (stable)" matches CHR_VERSION=7.24.5, "7.24.50" does not.
-// With CHR_CHANNEL (the channel column of versions.txt) the channel has to match too.
+// With CHR_CHANNEL (the channel column of versions.txt) the channel has to match too. A release candidate reports
+// the bare version ("7.25rc3"): there is no channel to compare, so only the exact version counts.
 $matches = $channel === ''
     ? $version === $expected || str_starts_with($version, $expected . ' ')
-    : $version === "$expected ($channel)";
+    : $version === "$expected ($channel)" || $version === $expected;
 if (!$matches) {
     fwrite(STDERR, "ERROR: router reports version '$version', expected $expected" . ($channel === '' ? '' : " ($channel)") . "\n");
     exit(1);

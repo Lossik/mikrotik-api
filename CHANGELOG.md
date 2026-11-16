@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- tools/chr: `smoke.php` failed every release candidate (`7.25rc3`), which reports its version without a channel;
+  a version without a channel now has to match the row exactly, a reported channel still has to match the row.
+
 ## [3.0.2] - 2026-11-16
 
 ### Fixed

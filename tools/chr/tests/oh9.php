@@ -61,7 +61,9 @@ $cases = [
     'channel matches' => ['7.24.5 (stable)', '7.24.5', 'stable', true],
     'long-term channel matches' => ['6.49.18 (long-term)', '6.49.18', 'long-term', true],
     'router reports another channel than the row' => ['7.24.5 (testing)', '7.24.5', 'stable', false],
-    'router reports no channel' => ['7.24.5', '7.24.5', 'stable', false],
+    'router reports no channel (release candidate): the exact version counts' => ['7.25rc3', '7.25rc3', 'testing', true],
+    'router reports no channel and another version' => ['7.25rc2', '7.25rc3', 'testing', false],
+    'router reports no channel and a longer version' => ['7.25rc30', '7.25rc3', 'testing', false],
     'version only shares the prefix' => ['7.24.50 (stable)', '7.24.5', null, false],
 ];
 
