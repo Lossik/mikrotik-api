@@ -6,7 +6,7 @@
 #
 #   bash tools/chr/run-live.sh   (from the repository root)
 #
-# Environment: CHR_VERSION, CHR_CACHE, CHR_BOOT_TIMEOUT (see chr.sh); CHR_PASSWORD (admin password to set,
+# Environment: CHR_VERSION (the row of versions.txt also sets CHR_CHANNEL for smoke.php), CHR_CACHE, CHR_BOOT_TIMEOUT (see chr.sh); CHR_PASSWORD (admin password to set,
 # default: random per run), CHR_LIVE_TIMEOUT (timeout for the phpunit live phase; default by ssh-path),
 # CHR_REBOOT_TIMEOUT (provision.php: wait for the router after the reboot that enables the ipv6 package; default 600).
 #
@@ -49,6 +49,9 @@ read_version_row() {
 	[ -f "$file" ] || die "versions file '$file' not found"
 	line=$(awk -v v="$target" '$1 == v { print; exit }' "$file")
 	[ -n "$line" ] || die "version '$target' is not listed in $file"
+	# the first row must not silently win over a later one
+	[ "$(awk -v v="$target" '$1 == v { n++ } END { print n + 0 }' "$file")" -eq 1 ] \
+		|| die "version '$target' is listed more than once in $file"
 
 	line="${line%%#*}"
 	read -r -a words <<<"$line"
@@ -63,6 +66,10 @@ read_version_row() {
 	ROW_INSTALL="${words[4]}"
 	ROW_SHA_SOURCE="${words[5]}"
 
+	if [ "$ROW_CHANNEL" != "stable" ] && [ "$ROW_CHANNEL" != "testing" ] && [ "$ROW_CHANNEL" != "long-term" ]; then
+		die "unknown channel '$ROW_CHANNEL' for version '$target'"
+	fi
+	[[ "$ROW_SHA" =~ ^[a-f0-9]{64}$ ]] || die "sha256 of version '$target' is not 64 lowercase hex digits"
 	if [ "$ROW_SSH_PATH" != "json" ] && [ "$ROW_SSH_PATH" != "text" ]; then
 		die "unknown ssh-path '$ROW_SSH_PATH' for version '$target'"
 	fi
@@ -121,6 +128,12 @@ plan_live_run() {
 	PLAN_LABELS=()
 	PLAN_COMMANDS=()
 	plan_step "env" "export MIKROTIK_LIVE_SSH_PATH=$ROW_SSH_PATH"
+	# smoke.php compares the channel the router reports; the row of an unpinned version (main) only guesses it
+	if [ -z "${CHR_TEMP_VERSIONS:-}" ]; then
+		plan_step "env" "export CHR_CHANNEL=$ROW_CHANNEL"
+	else
+		plan_step "env" "unset CHR_CHANNEL"
+	fi
 	plan_step "env" "export CHR_LIVE_TIMEOUT=$live_timeout"
 	plan_step "env" "export MIKROTIK_LIVE_HOST=127.0.0.1"
 	plan_step "env" "export MIKROTIK_LIVE_PORT_API=18728"

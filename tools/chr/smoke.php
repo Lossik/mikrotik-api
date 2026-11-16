@@ -6,7 +6,8 @@ declare(strict_types=1);
  * Smoke test of a running CHR over the raw API socket.
  *
  *   php tools/chr/smoke.php               log in as admin/$CHR_PASSWORD, run /system/resource/print and check
- *                                         that =version= starts with $CHR_VERSION (default 7.24.5)
+ *                                         that =version= starts with $CHR_VERSION (default 7.24.5); when $CHR_CHANNEL is
+ *                                         set, =version= must be exactly "$CHR_VERSION ($CHR_CHANNEL)"
  *   php tools/chr/smoke.php --login-only  readiness probe for chr.sh wait: succeeds on any complete reply
  *                                         to /login (!done or !trap); a bare TCP connect does not count
  *   php tools/chr/smoke.php --ssh-banner  readiness probe for chr.sh wait-ssh: succeeds when the SSH port sends
@@ -108,6 +109,7 @@ if ($loginOnly) {
 
 $password = chr_env('CHR_PASSWORD');
 $expected = chr_env('CHR_VERSION', '7.24.5');
+$channel = chr_env('CHR_CHANNEL', '');
 
 try {
     $api = ChrApi::connect(CHR_HOST, CHR_API_PORT, 10.0);
@@ -131,8 +133,12 @@ if ($reply['trap'] !== null || $reply['re'] === []) {
 $resource = $reply['re'][0];
 $version = $resource['version'] ?? '';
 // RouterOS appends the channel: "7.24.5 (stable)" matches CHR_VERSION=7.24.5, "7.24.50" does not.
-if ($version !== $expected && !str_starts_with($version, $expected . ' ')) {
-    fwrite(STDERR, "ERROR: router reports version '$version', expected $expected\n");
+// With CHR_CHANNEL (the channel column of versions.txt) the channel has to match too.
+$matches = $channel === ''
+    ? $version === $expected || str_starts_with($version, $expected . ' ')
+    : $version === "$expected ($channel)";
+if (!$matches) {
+    fwrite(STDERR, "ERROR: router reports version '$version', expected $expected" . ($channel === '' ? '' : " ($channel)") . "\n");
     exit(1);
 }
 

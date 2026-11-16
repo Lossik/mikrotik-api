@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 ### Fixed
 
+- tools/chr: `versions.txt` rows are validated (channel, a 64-digit lowercase SHA256, no duplicate version) and
+  `smoke.php` checks the channel the router reports against the row (`CHR_CHANNEL`), not only the version prefix.
 - Latest RouterOS workflow: a hosted runner without `/dev/kvm` failed the job with an empty log and opened a
   "live suite failed" issue for a version that was never tested (2-3 November 2026). The job now says that the runner
   has no KVM and that the version is retried on the next run; the issue is opened only when the suite itself failed.
