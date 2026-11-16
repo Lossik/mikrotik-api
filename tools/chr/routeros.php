@@ -218,5 +218,5 @@ function chr_env(string $name, ?string $default = null): string
 }
 
 const CHR_HOST = '127.0.0.1';
-const CHR_API_PORT = 18728;
+define('CHR_API_PORT', (int) chr_env('CHR_API_PORT', '18728')); // the tests point it at a fake router
 define('CHR_SSH_PORT', (int) chr_env('CHR_SSH_PORT', '18722'));

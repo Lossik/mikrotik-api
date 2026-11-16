@@ -24,10 +24,10 @@ error, never a skip. Every run boots a fresh copy of the image in `/tmp`, so eac
 | `chr.sh` | `install` (apt: `qemu-system-x86`, `unzip`), `start` (refuses `upgrade:` rows — they are booted by `run-live.sh`), `wait` (API `/login`), `wait-ssh` (one patient connection until an `SSH-` banner line; a fresh CHR sends none for a while after the API is up, and every broken connection costs the router seconds), `stop`, `status` |
 | `provision.php` | idempotent setup: admin password, read-only user `nopass` with empty password, services `api`/`api-ssl`/`ssh`, self-signed certificate `test` for `api-ssl` (assigning it is retried for up to 15 s); when the router has the package `ipv6` installed and disabled (every CHR 6.x image), enables it, reboots and waits until admin logs in and the package reports enabled (`CHR_REBOOT_TIMEOUT`) — the condition is the package state, not the version; with `--defer-reboot` (base image of an `upgrade:` row) it only schedules the enable, and the upgrade reboot applies it |
 | `upgrade.php` | upgrade of a booted router with `routeros-x86-<version>.npk` (SFTP upload, reboot, wait); fails unless `/system/resource` reports the target version and every enabled package has exactly that version. SFTP via phpseclib when the repository has it, otherwise via `curl` (libssh2) with the credentials in a temporary config file |
-| `smoke.php` | logs in and checks `/system/resource/print` reports `CHR_VERSION`; `--login-only` is the readiness probe of `chr.sh wait`, `--ssh-banner` of `chr.sh wait-ssh`; `--ssh-login` does one full SSH login and one command outside PHPUnit, so the live tests meet a warmed-up sshd (skipped with a message where the repository does not depend on phpseclib, i.e. mikrotik-api; a failure where it does) |
+| `smoke.php` | logs in and checks `/system/resource/print` reports `CHR_VERSION` and, when `CHR_CHANNEL` is set (`run-live.sh` sets it from the `channel` column), exactly `<version> (<channel>)`; `--login-only` is the readiness probe of `chr.sh wait`, `--ssh-banner` of `chr.sh wait-ssh`; `--ssh-login` does one full SSH login and one command outside PHPUnit, so the live tests meet a warmed-up sshd (skipped with a message where the repository does not depend on phpseclib, i.e. mikrotik-api; a failure where it does) |
 | `routeros.php` | minimal raw-socket RouterOS API client used by the PHP scripts; logs in with `/login =name= =password=` and answers the MD5 challenge of RouterOS before 6.43 |
 | `versions.txt` | known CHR versions, see below |
-| `tests/run.sh` | checks of the harness itself without a router (OH1–OH8: row validation, SHA256 check, both logins, patient banner wait, the printed and the executed plan, `--ssh-login`, the upgrade checks, enabling the `ipv6` package); the CI job runs it first |
+| `tests/run.sh` | checks of the harness itself without a router (OH1–OH9: row validation, SHA256 check, both logins, patient banner wait, the printed and the executed plan, `--ssh-login`, the upgrade checks, enabling the `ipv6` package, the version and channel check of `smoke.php`); the CI job runs it first |
 
 All scripts are invoked as `bash <script>` / `php <script>`; they do not rely on the executable bit.
 
@@ -43,7 +43,9 @@ One row per version: `<version> <channel> <sha256> <ssh-path> <install> <sha-sou
 | `install` | `image` (boot the official image) or `upgrade:<base>` (boot the image of the `<base>` row and upgrade it with the NPK) |
 | `sha-source` | `official` (the server publishes `<file>.sha256`) or `computed` (it does not — HTTP 404 — and the hash was computed locally; a changed file on the server is then reported as a SHA256 mismatch) |
 
-Lines starting with `#` and a trailing `# …` on a row are comments; any other extra column is an error. An `upgrade:`
+`channel` must be one of the three values, `sha256` 64 lowercase hex digits and a version may be listed only once;
+the row of a version that breaks this fails the run before anything starts. Lines starting with `#` and a trailing
+`# …` on a row are comments; any other extra column is an error. An `upgrade:`
 row needs `sha-source=official` and a `<base>` row with `install=image`.
 
 **RouterOS 6.49.23 is tested as an installation upgraded from 6.49.20.** Fresh official CHR images 6.49.21 and newer
