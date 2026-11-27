@@ -56,13 +56,19 @@ jobs:
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+          # --settle: trigger is asynchronous, and the check below would otherwise race udev applying MODE="0666".
+          sudo udevadm trigger --name-match=kvm --settle
+          if ! test -w /dev/kvm; then
+            ls -l /dev/kvm || true
+            echo "CPU virtualization flags: $(grep -c -E 'vmx|svm' /proc/cpuinfo || true)"
+            echo "::error::This runner has no usable /dev/kvm (GitHub infrastructure, not RouterOS $CHR_VERSION): the live suite did not run. Re-run the job."
+            exit 1
+          fi
 
       - name: CHR live run
         id: live
         run: |
           mkdir -p .cache/chr
-          test -w /dev/kvm
           KVM=(--device /dev/kvm)
           docker run --rm -v "$PWD:/app" -w /app php:8.2.35-cli bash tools/chr/tests/run.sh
           set +e
