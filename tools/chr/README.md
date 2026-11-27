@@ -156,8 +156,8 @@ Review the diff and commit versions.txt with the release; the workflow never edi
 
 A new release's failed live run stays red and opens a GitHub issue, or comments on an existing open issue for the
 same version. The issue includes the run URL, channels and the tail of the failing log; full logs/JUnit are artifacts.
-A hosted runner without a usable /dev/kvm (it happens now and then) fails the job before the suite with an explicit
-message and opens no issue; nothing is recorded, so the version is retried on the next scheduled run.
+A hosted runner without a usable /dev/kvm fails the job before the suite with an explicit message and opens no issue;
+nothing is recorded, so the version is retried on the next scheduled run.
 Enable GitHub Actions failure email notifications: scheduled-run notifications go to the last user who changed the
 cron expression. The ordinary code-change matrix uses red checks, without failure issues.
 

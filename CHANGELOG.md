@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- GitHub CHR workflows: "Enable KVM" checked `/dev/kvm` before udev had applied the new permissions
+  (`udevadm trigger` is asynchronous) and reported a usable runner as one without KVM; Latest RouterOS test jobs
+  failed this way from 23 November 2026. The step now waits for the event (`--settle`). The failures of
+  2-3 November, put down to runners without KVM, were most likely the same race.
+- CI workflow: the `/dev/kvm` check moved into "Enable KVM" and says why the job failed.
+
 ## [3.0.3] - 2026-11-16
 
 ### Fixed
